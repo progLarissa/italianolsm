@@ -16,6 +16,8 @@
 
 É uma página única: abra `index.html` no navegador, ou ative o GitHub Pages (Settings → Pages → branch `main`, pasta `/`).
 
+No celular, use "Adicionar à tela de início" (Safari no iPhone, Chrome no Android): o caderno aparece com o próprio ícone e abre em tela cheia, como um app. Os ícones e o `manifest.webmanifest` ficam na raiz (`icon.svg` é a fonte; os PNG saem dele com `rsvg-convert`).
+
 Fora do claude.ai, a correção das redações por IA, as respostas da IA e a sincronização entre dispositivos ficam desligadas. O progresso fica salvo no navegador (localStorage).
 
 ## Como editar
