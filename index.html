@@ -6383,16 +6383,36 @@ const canSpeak = (()=>{ try{ return 'speechSynthesis' in window && typeof Speech
 let speakingId=null;
 function speakBtnHTML(id){ return canSpeak?`<button class="btn speak" id="${id}" type="button" aria-pressed="false">▶ Ascolta</button>`:''; }
 function textOf(el,skip){ if(!el) return ''; const c=el.cloneNode(true); c.querySelectorAll(skip||'.speak').forEach(x=>x.remove()); c.querySelectorAll('p,li,h2,h3').forEach(x=>x.append('. ')); return c.textContent.replace(/\s+/g,' ').replace(/(\.\s*){2,}/g,'. ').trim(); }
-function itVoice(){ try{ const vs=speechSynthesis.getVoices(); return vs.find(v=>/^it[-_]IT/i.test(v.lang))||vs.find(v=>/^it/i.test(v.lang))||null; }catch(e){ return null; } }
-function stopSpeak(){ try{ if(canSpeak) speechSynthesis.cancel(); }catch(e){} if(speakingId){ const b=document.getElementById(speakingId); if(b){ b.textContent=b.dataset.label||'▶ Ascolta'; b.setAttribute('aria-pressed','false'); } } speakingId=null; }
+let ttsVoice, ttsRunId=0, ttsWarned=false; const ttsHold=[];
+function itVoice(){ if(ttsVoice!==undefined) return ttsVoice; try{ const vs=speechSynthesis.getVoices(); if(!vs.length) return null; ttsVoice=vs.find(v=>/^it[-_]IT/i.test(v.lang)&&v.localService)||vs.find(v=>/^it[-_]IT/i.test(v.lang))||vs.find(v=>/^it/i.test(v.lang))||null; return ttsVoice; }catch(e){ return null; } }
+function ttsBusy(){ try{ return speechSynthesis.speaking||speechSynthesis.pending; }catch(e){ return false; } }
+if(canSpeak){
+  try{ speechSynthesis.addEventListener('voiceschanged',()=>{ ttsVoice=undefined; }); speechSynthesis.getVoices(); }catch(e){}
+  /* iOS e Android: o primeiro áudio tem de nascer de um toque; depois a voz pode tocar também em sequência */
+  const unlock=()=>{ ['pointerdown','touchend','keydown'].forEach(ev=>document.removeEventListener(ev,unlock,true)); try{ const u=new SpeechSynthesisUtterance(' '); u.volume=0; u.lang='it-IT'; speechSynthesis.speak(u); }catch(e){} };
+  ['pointerdown','touchend','keydown'].forEach(ev=>document.addEventListener(ev,unlock,true));
+}
+const TTS_HELP=`<b>Non senti la voce?</b> No iPhone, desligue o <b>modo silencioso</b> (o botão na lateral) e aumente o volume. No Android, confira em Configurações → Acessibilidade → Saída de texto para fala se há voz <b>italiana</b> instalada. No app do Claude o áudio pode não funcionar: abra o caderno no Safari ou no Chrome.`;
+function ttsRun(list,wasBusy){
+  const run=++ttsRunId;
+  const go=()=>{
+    if(run!==ttsRunId) return;
+    try{ speechSynthesis.resume(); }catch(e){}
+    let started=false; ttsHold.length=0;
+    list.forEach(u=>{ const f=u.onstart; u.onstart=e=>{ started=true; f&&f(e); }; ttsHold.push(u); speechSynthesis.speak(u); });
+    setTimeout(()=>{ if(!started&&run===ttsRunId&&!ttsWarned){ ttsWarned=true; try{ toast(TTS_HELP); }catch(e){} } },3500);
+  };
+  if(wasBusy) setTimeout(go,150); else go();
+}
+function stopSpeak(){ ttsRunId++; try{ if(canSpeak) speechSynthesis.cancel(); }catch(e){} if(speakingId){ const b=document.getElementById(speakingId); if(b){ b.textContent=b.dataset.label||'▶ Ascolta'; b.setAttribute('aria-pressed','false'); } } speakingId=null; }
 function speak(text,id,rate){
   if(!canSpeak||!text) return;
-  stopSpeak();
+  const busy=ttsBusy(); stopSpeak();
   try{
-    const parts=text.match(/[^.!?»]+[.!?»]*/g)||[text];
+    const parts=(text.match(/[^.!?»]+[.!?»]*/g)||[text]).map(p=>p.trim()).filter(Boolean);
     const v=itVoice();
     speakingId=id||null;
-    parts.forEach((p,i)=>{ const u=new SpeechSynthesisUtterance(p.trim()); u.lang='it-IT'; if(v) u.voice=v; u.rate=rate||S.rate||0.9; if(i===parts.length-1) u.onend=()=>{ if(speakingId===id) stopSpeak(); }; speechSynthesis.speak(u); });
+    ttsRun(parts.map((p,i)=>{ const u=new SpeechSynthesisUtterance(p); u.lang='it-IT'; if(v) u.voice=v; u.rate=rate||S.rate||0.9; if(i===parts.length-1) u.onend=()=>{ if(speakingId===(id||null)) stopSpeak(); }; return u; }),busy);
     if(id){ const b=document.getElementById(id); if(b){ b.textContent='■ Ferma'; b.setAttribute('aria-pressed','true'); } }
   }catch(e){ stopSpeak(); }
 }
@@ -6442,21 +6462,21 @@ const LVLS=['A1','A2','B1','B2','C1'];
 function rateSel(){ const r=S.rate||0.9; return `<div class="rate" role="group" aria-label="Velocità della voce"><span class="note">Voce:</span>${[[0.7,'lenta'],[0.9,'normale'],[1.1,'veloce']].map(([v,l])=>`<button type="button" data-rate="${v}" aria-pressed="${Math.abs(r-v)<.01}">${l}</button>`).join('')}</div>`; }
 function bindRate(root){ (root||document).querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{ S.rate=+b.dataset.rate; save(); document.querySelectorAll('[data-rate]').forEach(x=>x.setAttribute('aria-pressed',+x.dataset.rate===S.rate)); }); }
 function voiceNote(){
-  if(!canSpeak) return `<p class="callout small">Questo browser non ha la sintesi vocale: gli esercizi di ascolto mostrano il testo. Prova da un altro browser o dal telefono.</p>`;
-  return `<p class="note voicenote">Non senti niente o la voce non è italiana? Installa una voce italiana nelle impostazioni di sintesi vocale o di accessibilità del tuo dispositivo e ricarica la pagina.</p>`;
+  if(!canSpeak) return `<p class="callout small">Questo browser non ha la sintesi vocale, quindi gli esercizi di ascolto mostrano il testo. Se stai usando l'app di Claude sul telefono, apri il quaderno nel browser (Safari o Chrome): lì la voce funziona.</p>`;
+  return `<p class="note voicenote">${TTS_HELP} Dopo aver installato una voce, ricarica la pagina.</p>`;
 }
 function speakSeq(parts,id,opts){
   opts=opts||{};
   if(!canSpeak||!parts.length) return false;
-  stopSpeak();
+  const busy=ttsBusy(); stopSpeak();
   try{
     const v=itVoice(), key=id||'_seq'; speakingId=key;
-    parts.forEach((p,i)=>{
+    ttsRun(parts.map((p,i)=>{
       const u=new SpeechSynthesisUtterance(p.text); u.lang='it-IT'; if(v) u.voice=v; u.rate=opts.rate||S.rate||0.9; u.pitch=p.pitch||1;
       if(p.onstart) u.onstart=p.onstart;
       if(i===parts.length-1) u.onend=()=>{ if(speakingId===key){ stopSpeak(); opts.onend&&opts.onend(); } };
-      speechSynthesis.speak(u);
-    });
+      return u;
+    }),busy);
     if(id){ const b=document.getElementById(id); if(b){ b.dataset.label=b.dataset.label||b.textContent; b.textContent='■ Ferma'; b.setAttribute('aria-pressed','true'); } }
     return true;
   }catch(e){ stopSpeak(); return false; }
