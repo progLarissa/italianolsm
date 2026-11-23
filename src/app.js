@@ -87,7 +87,7 @@ function renderNav(route){
   h+=`<div class="navgroup"><h4><span>Strumenti</span></h4><ul>
    <li><a class="navlink tool" href="#schede" ${route.type==='scheda'?'aria-current="page"':''}><span class="n">☰</span><span class="t">Schede riassuntive<br><small class="note">il ripasso in 2 minuti</small></span></a></li>
    <li><a class="navlink tool" href="#falsi-amici" ${route.type==='falsi'?'aria-current="page"':''}><span class="n">≠</span><span class="t">Falsi amici<br><small class="note">${FALSI.length} trappole ES/PT</small></span></a></li>
-   <li><a class="navlink tool" href="#verbi" ${route.type==='verbi'?'aria-current="page"':''}><span class="n">→</span><span class="t">Coniugatore<br><small class="note">${Object.keys(VERBI).length} verbi · 8 tempi</small></span></a></li>
+   <li><a class="navlink tool" href="#verbi" ${route.type==='verbi'?'aria-current="page"':''}><span class="n">→</span><span class="t">Coniugatore<br><small class="note">cerca qualsiasi verbo · tutti i tempi</small></span></a></li>
    <li><a class="navlink tool" href="#frasi" ${route.type==='frasi'?'aria-current="page"':''}><span class="n">¶</span><span class="t">Laboratorio di frasi<br><small class="note">${TRAD.length} traduzioni · ${TRASF.length} trasformazioni</small></span></a></li>
   </ul></div><p class="syncline" id="syncline">${syncText()}</p>`;
   nav.innerHTML=h;
@@ -99,6 +99,7 @@ function route(){
   if((m=h.match(/^unita-(\d+)$/)) && UNITS.find(u=>u.id==m[1])) return {type:'unit',id:+m[1]};
   if(h==='falsi-amici') return {type:'falsi'};
   if(h==='verbi') return {type:'verbi'};
+  if((m=h.match(/^verbo-([a-zàèéìòù']+)$/))) return {type:'verbi',q:m[1]};
   if(h==='frasi') return {type:'frasi'};
   if(h==='ripasso') return {type:'ripasso'};
   if(h==='misto') return {type:'misto'};
@@ -130,7 +131,7 @@ function render(){
   closeNav();
   if(r.type==='unit') renderUnit(UNITS.find(u=>u.id===r.id));
   else if(r.type==='falsi') renderFalsi();
-  else if(r.type==='verbi') renderVerbi();
+  else if(r.type==='verbi') renderVerbi(r.q);
   else if(r.type==='frasi') renderLab();
   else if(r.type==='ripasso') renderRipasso();
   else if(r.type==='misto') renderMisto();
@@ -555,14 +556,16 @@ function quizFalsi(fb){
 const VKEYS=Object.keys(VERBI).sort((a,b)=>a.localeCompare(b,'it'));
 let vSel={tempi:['pres','imp','pp','fut','cond','cong','cimp'],verbi:VKEYS.slice()};
 try{ const v=JSON.parse(localStorage.getItem(KEY+'-v2')||'null'); if(v&&v.tempi&&v.verbi&&v.verbi.length) vSel={tempi:v.tempi,verbi:v.verbi.filter(k=>VERBI[k])}; }catch(e){}
-let streak=0, cur=null, vMode='drill', vTab=VKEYS.includes('andare')?'andare':VKEYS[0];
+let streak=0, cur=null, vMode='cerca', vQuery='', vTab=VKEYS.includes('andare')?'andare':VKEYS[0];
 function saveVSel(){ try{localStorage.setItem(KEY+'-v2',JSON.stringify(vSel));}catch(e){} }
-function renderVerbi(){
-  $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Strumenti · verbi</div><h1 class="title">Coniugatore</h1><p class="subtitle">${VKEYS.length} verbi in 8 tempi. Nell'allenamento scrivi la forma e premi Invio; Invio di nuovo passa al verbo successivo. Nella tabella trovi ogni verbo per intero.</p></header>
-   <div class="seg" role="group"><button data-m="drill" aria-pressed="${vMode==='drill'}">Allenamento</button><button data-m="table" aria-pressed="${vMode==='table'}">Tabella</button></div>
+function renderVerbi(q){
+  if(q){ vMode='cerca'; vQuery=q; }
+  if(vMode==='table') vMode='cerca';
+  $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Strumenti · verbi</div><h1 class="title">Coniugatore</h1><p class="subtitle">Cerca qualsiasi verbo e vedi tutti i tempi, con le forme irregolari in evidenza: funziona senza IA e senza consumare niente. Nell'allenamento scrivi la forma e premi Invio; Invio di nuovo passa al verbo successivo.</p></header>
+   <div class="seg" role="group"><button data-m="cerca" aria-pressed="${vMode==='cerca'}">Cerca un verbo</button><button data-m="drill" aria-pressed="${vMode==='drill'}">Allenamento</button></div>
    <div id="vbody"></div>`;
   $('#main').querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ vMode=b.dataset.m; renderVerbi(); });
-  if(vMode==='table') return verbTable();
+  if(vMode==='cerca') return verbSearch();
   $('#vbody').innerHTML=`<section class="card drill" id="drill"></section>
    <section class="card"><div class="card-h"><div><span class="lab">Impostazioni</span><h3>Che cosa allenare</h3></div><span class="note" id="vstats"></span></div>
    <p class="note" style="margin:0 0 6px">Tempi</p><div class="chipsel" id="selT">${Object.entries(TEMPI).map(([k,l])=>`<button data-k="${k}" aria-pressed="${vSel.tempi.includes(k)}">${l}</button>`).join('')}</div>
@@ -575,16 +578,58 @@ function renderVerbi(){
   $('#vbody').querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ const g=b.dataset.g; vSel.verbi=VKEYS.filter(k=>g==='all'||VERBI[k].g===g); sync(); });
   nextVerb();
 }
-function verbTable(){
-  const d=VERBI[vTab];
-  $('#vbody').innerHTML=`<section class="card"><div class="btnrow" style="justify-content:space-between">
-     <label class="note" for="vpick">Verbo</label>
-     <select id="vpick" class="vsel">${VKEYS.map(k=>`<option value="${k}" ${k===vTab?'selected':''}>${k} — ${esc(VERBI[k].pt||'')}</option>`).join('')}</select></div>
-     <div class="vhead"><div class="verbname">${vTab}</div><div class="note">${esc(d.pt||'')} · ${d.g==='reg'?'regolare':'irregolare'}</div>
-     <div class="vfacts"><span><b>participio</b> ${esc(d.part)}</span><span><b>gerundio</b> ${gerundio(vTab)}</span><span><b>ausiliare</b> ${d.aux==='E'?'essere':'avere'}</span></div></div>
-     <div class="vgrid">${Object.entries(TEMPI).map(([t,l])=>{ const f=coniuga(vTab,t); return `<div class="vt"><h4>${l}</h4>${f.map((x,i)=>`<div><span>${PERSONE[i]}</span>${esc(x)}</div>`).join('')}</div>`; }).join('')}</div>
-   </section>`;
-  $('#vpick').onchange=e=>{ vTab=e.target.value; verbTable(); };
+const VGROUPS=[['Indicativo',[['pres','presente'],['imp','imperfetto'],['pp','passato prossimo'],['trap','trapassato prossimo'],['fut','futuro semplice'],['futant','futuro anteriore'],['pr','passato remoto']]],
+ ['Congiuntivo',[['cong','presente'],['congp','passato'],['cimp','imperfetto'],['congtrap','trapassato']]],
+ ['Condizionale',[['cond','presente'],['condp','passato']]]];
+const VPRON=['io','tu','lui/lei','noi','voi','loro'];
+function verbSearch(){
+  const I=verbIndex();
+  const recent=Array.isArray(S.vRecent)?S.vRecent.slice(0,10):[];
+  $('#vbody').innerHTML=`<section class="card vsearch"><label class="lab" for="vq">Cerca un verbo</label>
+    <div class="dictrow"><input id="vq" class="inp" type="search" list="vlist" enterkeyhint="search" placeholder="parlare, alzarsi… vado… comer" value="${esc(vQuery)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn primary" id="vqgo" type="button">Coniuga</button></div>
+    <datalist id="vlist">${I.all.map(v=>`<option value="${v}">`).join('')}</datalist>
+    <p class="note">Puoi scrivere l'infinito (anche riflessivo: <i>alzarsi</i>), una forma coniugata (<i>vado, ho fatto, faccia</i>) o il verbo in portoghese (<i>comer</i>). ${I.all.length} verbi con il significato, più qualsiasi verbo regolare.</p>
+    <div class="vchips"><span class="note">${recent.length?'Cercati di recente:':'I più usati:'}</span>${(recent.length?recent:['essere','avere','fare','andare','venire','stare','potere','volere','dovere','sapere','alzarsi','capire']).map(v=>`<button class="btn ghost sm" type="button" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>
+  </section><div id="vres"></div>`;
+  const inp=$('#vq');
+  const go=v=>{ v=(v||inp.value).trim(); if(!v) return; vQuery=v; inp.value=v; showVerb(v); };
+  $('#vqgo').onclick=()=>go();
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go(); inp.blur(); } });
+  inp.addEventListener('change',()=>{ if(I.all.includes(inp.value.trim().toLowerCase())) go(); });
+  $('#vbody').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));
+  if(vQuery) showVerb(vQuery);
+}
+function showVerb(q){
+  const box=$('#vres'); if(!box) return;
+  const r=findVerb(q);
+  if(!r.c){
+    const L=r.list||[];
+    box.innerHTML=`<section class="card">${L.length?`<p>${r.fromForm?`«<b>${esc(r.fromForm)}</b>» è una forma di:`:r.byPt?'In italiano:':'Forse cercavi:'}</p><div class="vchips">${L.map(v=>{ const c=conjugate(v); return `<button class="btn ${L.length===1?'primary':''}" type="button" data-v="${esc(v)}">${esc(v)}${c&&c.pt?` <span class="note">· ${esc(c.pt)}</span>`:''}</button>`; }).join('')}</div>`:`<p>Non trovo «${esc(q)}». Scrivi l'infinito (che finisce in <b>-are, -ere, -ire</b> o <b>-rre</b>) oppure una forma coniugata.</p>`}</section>`;
+    box.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{ vQuery=b.dataset.v; $('#vq').value=vQuery; showVerb(vQuery); });
+    if(r.fromForm&&L.length===1){ vQuery=L[0]; return showVerb(L[0]); }
+    return;
+  }
+  const c=r.c, v=c.inf;
+  S.vRecent=[v,...(Array.isArray(S.vRecent)?S.vRecent:[]).filter(x=>x!==v)].slice(0,10); save();
+  const cell=(t,i)=>{ const f=c.T[t][i]; const irr=c.reg&&c.reg[t]&&c.reg[t][i]!==f; return irr?`<b class="irrf">${esc(f)}</b>`:esc(f); };
+  const pron=(t,i)=>t.startsWith('cong')?'che '+VPRON[i].replace('lui/lei','lui'):VPRON[i];
+  const tcard=(t,l)=>`<div class="vt"><h4>${l}${canSpeak?` <button class="btn ghost sm vsay" type="button" data-say="${t}" aria-label="Ascolta ${l}">▶</button>`:''}</h4>${c.T[t].map((x,i)=>`<div><span>${pron(t,i)}</span>${cell(t,i)}</div>`).join('')}</div>`;
+  const partIrr=c.reg&&c.reg.part!==c.part;
+  const canDrill=VERBI[c.base]&&!c.refl;
+  box.innerHTML=`<section class="card vres">
+    <div class="vhead"><div class="verbname">${esc(v)}</div><div class="note">${esc(c.pt||'')}${c.pt?' · ':''}${c.g==='irr'?'<b class="irrf">irregolare</b>':'regolare'}${c.refl?' · riflessivo':''}${r.guess?' · <i>non è nella lista: coniugato con le regole</i>':''}</div>
+     <div class="vfacts"><span><b>ausiliare</b> ${c.aux==='E'?'essere':'avere'}</span><span><b>participio</b> ${partIrr?`<b class="irrf">${esc(c.part)}</b>`:esc(c.part)}</span><span><b>gerundio</b> ${esc(c.ger)}</span></div>
+     ${c.notes.length?`<ul class="dots vnotes">${c.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
+     <div class="btnrow">${canSpeak?`<button class="btn" type="button" id="vsayinf">▶ Ascolta</button>`:''}${canDrill?`<button class="btn" type="button" id="vdrill">Allenati con «${esc(c.base)}»</button>`:''}</div>
+     ${c.g==='irr'?'<p class="note">Le forme in <b class="irrf">rosso</b> sono irregolari: non seguono la regola.</p>':''}</div>
+    ${VGROUPS.map(([g,ts])=>`<h3 class="vgh">${g}</h3><div class="vgrid">${ts.map(([t,l])=>tcard(t,l)).join('')}</div>`).join('')}
+    <h3 class="vgh">Imperativo</h3>
+    ${c.T.imper?`<div class="vgrid"><div class="vt"><h4>imperativo</h4>${c.T.imper.map((x,i)=>`<div><span>${PERS_IMP[i]}</span>${esc(x)}</div>`).join('')}</div><div class="vt"><h4>negativo</h4><div><span>tu</span>non ${esc(c.refl?c.inf.replace(/si$/,'ti'):c.inf)}</div><div><span>Lei</span>non ${esc(c.T.imper[1])}</div><div><span>voi</span>non ${esc(c.T.imper[3])}</div><p class="note" style="margin:6px 0 0">Con <i>tu</i> il negativo è <b>non + infinito</b>.</p></div></div>`:`<p class="note">Questo verbo non ha l'imperativo.</p>`}
+  </section>`;
+  box.querySelectorAll('[data-say]').forEach(b=>b.onclick=()=>{ const t=b.dataset.say; speak(c.T[t].map((x,i)=>(t.startsWith('cong')?'che ':'')+['io','tu','lui','noi','voi','loro'][i]+' '+x.split('/')[0]).join('. ')+'.'); });
+  const si=$('#vsayinf'); if(si) si.onclick=()=>speak(v+'. '+c.T.pres.map(x=>x.split('/')[0]).join(', ')+'.');
+  const dr=$('#vdrill'); if(dr) dr.onclick=()=>{ vSel.verbi=[c.base]; saveVSel(); vMode='drill'; renderVerbi(); };
+  box.scrollIntoView({block:'start',behavior:'smooth'});
 }
 function vstats(){ const v=S.verbi; const el=$('#vstats'); if(el) el.textContent=`${v.ok}/${v.tot} giuste · serie ${streak} · record ${v.best}`; }
 function nextVerb(){

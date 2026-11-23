@@ -5,6 +5,7 @@
 ## O que tem
 
 - 26 unidades: os *Primi passi* (P1–P10, nível A1) e as unidades 1–16 (A2 → C1), cada uma com lição, leitura, exercícios, redação e "Parla e ascolta"
+- Conjugador sem IA: busca qualquer verbo (infinitivo, forma conjugada ou em português) e mostra todos os tempos, com as formas irregulares em vermelho
 - Verbos, falsos amigos, frases para traduzir, verificações (testes) com certificado
 - Léxico temático com mais de 600 palavras, áudio, cartões, quiz e ditado
 - Caderno de erros com repetição espaçada (1, 3, 7 e 15 dias)
@@ -34,6 +35,7 @@ O código-fonte está em `src/`:
 | `vocab.js`, `vocab_a1.js` | léxico temático |
 | `tests*.js` | verificações |
 | `storia.js`, `schede.js`, `cultura.js`, `speak_data.js`, `videos.js`, `sentences.js`, `data_it.js` | história, fichas, cultura, fala, vídeos e livros, frases |
+| `coniugatore.js` | motor do conjugador: irregulares, compostos, verbos em -ere fortes, regras dos regulares |
 | `app.js` | a aplicação (rotas, plano, calendário, exercícios) |
 
 Depois de editar, gere a página de novo:

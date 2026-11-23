@@ -2,7 +2,7 @@
 # Monta index.html a partir dos arquivos em src/
 set -e
 cd "$(dirname "$0")/src"
-cat data1.js data2.js data3.js a1.js extra.js extra2.js sentences.js data_it.js tests.js tests_a1.js vocab.js vocab_a1.js cultura.js speak_data.js a1_prep.js storia.js schede.js videos.js a1_ce.js app.js > ../all.js
+cat data1.js data2.js data3.js a1.js extra.js extra2.js sentences.js data_it.js tests.js tests_a1.js vocab.js vocab_a1.js cultura.js speak_data.js a1_prep.js storia.js schede.js videos.js a1_ce.js coniugatore.js app.js > ../all.js
 node --check ../all.js
 cd ..
 python3 - <<'PY'

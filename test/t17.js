@@ -1,0 +1,15 @@
+const {JSDOM}=require('jsdom'); const fs=require('fs');
+const html=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
+const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://x.test/#verbi',pretendToBeVisual:true,beforeParse(w){ w.scrollTo=()=>{}; w.Element.prototype.scrollIntoView=function(){}; w.addEventListener('error',e=>console.log('ERR',e.message)); }});
+const w=dom.window,d=w.document,$=s=>d.querySelector(s),$$=s=>[...d.querySelectorAll(s)];
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{ await wait(300);
+ console.log('seg:', $$('.seg button').map(b=>b.textContent).join('|'), '| datalist', $$('#vlist option').length);
+ const q=async v=>{ $('#vq').value=v; $('#vqgo').click(); await wait(10); return $('#vres').textContent.replace(/\s+/g,' ').slice(0,230); };
+ for(const v of ['mi alzo','sono andata','andare','vado','ho fatto','comer','alzarsi','pulire','xyz','abbiate','prevedere','acordar']) console.log(v,'→',await q(v));
+ $('#vq').value='fare'; $('#vqgo').click(); await wait(10);
+ console.log('irr forms:', $$('#vres .irrf').length, '| tenses', $$('#vres .vt').length, '| groups', $$('#vres .vgh').map(h=>h.textContent).join(','));
+ $('#vdrill').click(); await wait(10); console.log('drill verb:', $('#drill .verb').textContent);
+ w.location.hash='verbo-capire'; await wait(50); console.log('route:', $('#vres .verbname').textContent);
+ process.exit(0);
+})();
