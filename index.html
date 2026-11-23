@@ -589,6 +589,18 @@ label.chk{display:inline-flex;gap:6px;align-items:center}
 .cd .cl.wk{color:var(--muted);font-style:italic}
 .lg.work{background:repeating-linear-gradient(135deg,var(--line) 0 3px,var(--card) 3px 6px)}
 .wday.work{background:repeating-linear-gradient(135deg,var(--paper) 0 8px,var(--card) 8px 16px)}
+.ricordi{border-left:4px solid var(--blu);background:linear-gradient(90deg,var(--blu-soft),var(--card) 55%)}
+.ricordi .card-h h3{margin:0}
+.memcard .boxes{margin-top:10px}
+.dinp{width:100%;font:inherit;font-family:var(--f-read);font-size:16px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);margin:4px 0 8px}
+.dinp:focus{outline:2px solid var(--blu);outline-offset:1px}
+.dfrasi{display:grid;gap:10px;padding-left:22px;margin:12px 0}
+.dfrasi .labin{width:100%}
+.dcorr{margin-top:4px}
+.dcorr .corrected{display:inline}
+.dpast{padding:8px 0;border-top:1px dashed var(--line)}
+.dpast:first-of-type{border-top:0}
+.dpast s{color:var(--muted)}
 /* libri */
 .books{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .bookc{margin:0;display:flex;flex-direction:column}
@@ -5018,7 +5030,7 @@ const KEY='quaderno-italiano-v1';
 let S;
 try{ S = JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ S = {}; }
 function ensureDefaults(){
-  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
+  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
   S.verbi=S.verbi||{ok:0,tot:0,best:0}; S.falsi=S.falsi||{best:0};
   S.lab=S.lab||{trad:{ok:0,tot:0},trasf:{ok:0,tot:0},ord:{ok:0,tot:0}};
   S.goal=S.goal||30; S.mastered=S.mastered||0;
@@ -5077,6 +5089,8 @@ function renderNav(route){
   h+=`<div class="navgroup"><h4><span>Ogni giorno</span></h4><ul>
    <li><a class="navlink tool" href="#piano" ${route.type==='piano'?'aria-current="page"':''}><span class="n">▦</span><span class="t">Il mio piano<br><small class="note">calendario con le attività di ogni giorno</small></span></a></li>
    <li><a class="navlink tool" href="#ripasso" ${route.type==='ripasso'?'aria-current="page"':''}><span class="n">✎</span><span class="t">Quaderno degli errori ${due?`<span class="badge">${due}</span>`:''}<br><small class="note">${Object.keys(S.err).length} da ripassare · ${S.mastered} imparati</small></span></a></li>
+   <li><a class="navlink tool" href="#misto" ${route.type==='misto'?'aria-current="page"':''}><span class="n">⇄</span><span class="t">Ripasso misto<br><small class="note">${S.misto&&S.misto[weekKey(dayKey())]?'fatto questa settimana ✓':'tutte le unità, una volta alla settimana'}</small></span></a></li>
+   <li><a class="navlink tool" href="#diario" ${route.type==='diario'?'aria-current="page"':''}><span class="n">✍</span><span class="t">Il mio diario<br><small class="note">3 frasi dopo il corso</small></span></a></li>
    <li><a class="navlink tool" href="#racconto" ${route.type==='racconto'?'aria-current="page"':''}><span class="n">❧</span><span class="t">Il racconto: La lettera di Anna<br><small class="note">${STORIA.filter((_,i)=>storyRead(i)).length}/${STORIA.length} capitoli letti</small></span></a></li>
    <li><a class="navlink tool" href="#cultura" ${route.type==='cultura'?'aria-current="page"':''}><span class="n">❦</span><span class="t">Cultura italiana<br><small class="note">${Object.keys(S.cult).filter(k=>S.cult[k]&&S.cult[k].read).length}/${CULTURA.length} schede lette</small></span></a></li>
    <li><a class="navlink tool" href="#lessico" ${route.type==='lessico'?'aria-current="page"':''}><span class="n">Aa</span><span class="t">Lessico tematico<br><small class="note">${LESSICO.reduce((a,t)=>a+t.w.length,0)} parole · ${LESSICO.length} temi</small></span></a></li>
@@ -5105,6 +5119,8 @@ function route(){
   if(h==='verbi') return {type:'verbi'};
   if(h==='frasi') return {type:'frasi'};
   if(h==='ripasso') return {type:'ripasso'};
+  if(h==='misto') return {type:'misto'};
+  if(h==='diario') return {type:'diario'};
   if(h==='lessico') return {type:'lessico'};
   if(h==='cultura') return {type:'cultura'};
   if(h==='leggere') return {type:'leggere'};
@@ -5126,6 +5142,7 @@ function route(){
 function render(){
   const r=route();
   stopTestTimer(); stopSpeak(); stopOral();
+  try{ memSync(); }catch(e){}
   try{ autoAhead(); }catch(e){}
   renderNav(r);
   closeNav();
@@ -5134,6 +5151,8 @@ function render(){
   else if(r.type==='verbi') renderVerbi();
   else if(r.type==='frasi') renderLab();
   else if(r.type==='ripasso') renderRipasso();
+  else if(r.type==='misto') renderMisto();
+  else if(r.type==='diario') renderDiario();
   else if(r.type==='lessico') renderLessico(r.id);
   else if(r.type==='cultura') renderCultura(r.id);
   else if(r.type==='leggere') renderLeggere(r.id);
@@ -5251,10 +5270,11 @@ function goTab(u,t){ S.tab[u.id]=t; save(); renderUnit(u); $('.tabs').scrollInto
 /* lição */
 function tabLesson(u,c){
   const d=!!S.lesson[u.id];
-  c.innerHTML=`<div class="lesson">${u.lesson}</div>
+  c.innerHTML=`${ricordiHTML(u)}<div class="lesson">${u.lesson}</div>
    <div class="done-row">${SCHEDE[u.id]?`<a class="btn" href="#scheda-${u.id}">Ripassa in 2 minuti: scheda riassuntiva</a>`:''}<button class="btn ${d?'':'primary'}" id="ldone">${d?'✓ Lezione studiata':'Segna come studiata'}</button>
    <button class="btn" id="lnext">Vai alla lettura →</button></div>`;
   $('#ldone').onclick=()=>{ S.lesson[u.id]=!S.lesson[u.id]; save(); tabLesson(u,c); refreshProgress(u); };
+  bindRicordi(u);
   $('#lnext').onclick=()=>{ if(!S.lesson[u.id]){S.lesson[u.id]=true;save();} goTab(u,'lettura'); };
 }
 
@@ -5798,7 +5818,7 @@ function buildPlan(from){
   Object.entries((S.plan&&S.plan.a)||{}).forEach(([id,d])=>{ const s=STEP(id); if(s&&stepDone(s)){ const dd=d>today?today:d; keep[id]=dd; if(dd>=from) usedBy[dd]=(usedBy[dd]||0)+s.m; } });
   const todo=STEPS().filter(s=>!stepDone(s)); const a={}; let d=from, i=0, guard=0;
   while(i<todo.length&&guard++<2000){
-    const t=dayType(d), cap=t==='study'?c.min-5:t==='class'?Math.max(0,c.min-13):0;
+    const t=dayType(d), ex=(t==='study'||t==='class')?extraMins(d):0, cap=t==='study'?Math.max(0,c.min-5-ex):t==='class'?Math.max(0,c.min-13-ex):0;
     let used=usedBy[d]||0, placed=usedBy[d]?1:0;
     while(i<todo.length){ const s=todo[i]; if(used+s.m<=cap||(placed===0&&t==='study'&&cap>0)){ a[s.id]=d; used+=s.m; placed++; i++; } else break; }
     d=kAdd(d,1);
@@ -5822,15 +5842,28 @@ function fixedTasks(k){
   if(t==='class'){
     const cur=planDay(k)[0]||STEPS().find(s=>!stepDone(s)&&s.uid)||{}; const u=UNITS.find(x=>x.id===cur.uid);
     out.push({id:k+'|prep',k:'prep',t:`Prima del corso: scheda riassuntiva${u?' di '+uName(u):''}`,m:3,href:u&&SCHEDE[u.id]?'#scheda-'+u.id:'#schede'});
-    out.push({id:k+'|rev',k:'rev',t:'Quaderno degli errori',m:5,href:'#ripasso'});
+    out.push({id:k+'|rev',k:'rev',t:'Ripasso del giorno: errori e memoria',m:5,href:'#ripasso'});
     out.push({id:k+'|log',k:'log',t:'Dopo il corso: registra la lezione e aggiungi le parole nuove',m:5,href:'#fuori',fm:'registro'});
-  } else if(t==='study'){ out.push({id:k+'|rev',k:'rev',t:'Quaderno degli errori',m:5,href:'#ripasso'}); }
+  } else if(t==='study'){ out.push({id:k+'|rev',k:'rev',t:'Ripasso del giorno: errori e memoria',m:5,href:'#ripasso'}); }
   else if(t==='light'){ out.push({id:k+'|rev',k:'rev',t:'Ripasso leggero: quaderno degli errori',m:10,href:'#ripasso'}); }
+  if(isDiaryDay(k)) out.push({id:k+'|diario',k:'diario',t:'Diario: 3 frasi su quello che hai visto al corso',m:5,href:'#diario'});
+  if(isMixDay(k)) out.push({id:k+'|mix',k:'mix',t:'Ripasso misto della settimana',m:10,href:'#misto'});
   return out;
+}
+function isMixDay(k){
+  if(studiedUnits().length<2) return false;
+  const wd=kDate(k).getDay(), ok=d=>['study','class'].includes(dayType(d));
+  if(wd===6) return ok(k);
+  if(wd===0) return ok(k)&&!ok(kAdd(k,-1));
+  return false;
+}
+function extraMins(k){ return (isMixDay(k)?10:0)+(isDiaryDay(k)?5:0);
 }
 function fixedDone(f,k){
   if(S.planChk[f.id]) return true;
-  if(f.k==='rev') return !!S.revDays[k]||(k===dayKey()&&errDue().length===0);
+  if(f.k==='rev') return !!S.revDays[k]||(k===dayKey()&&errDue().length===0&&memToday().length===0);
+  if(f.k==='mix') return !!S.misto[weekKey(k)];
+  if(f.k==='diario') return !!S.diario[k];
   if(f.k==='prep') return !!S.schedaDays[k];
   if(f.k==='log') return ((S.log[k]||[]).some(e=>e.t==='corso'));
   return false;
@@ -6053,23 +6086,34 @@ function errLabel(e){
 }
 let rvQueue=[], rvPos=0, rvOk=0, rvMode='list';
 function renderRipasso(){
-  const all=Object.keys(S.err), due=errDue();
+  const all=Object.keys(S.err), due0=errDue(), mt=memToday(), ms=memStats(), due={length:due0.length+mt.length};
   const boxes=[0,0,0,0]; all.forEach(k=>boxes[Math.min(3,S.err[k].b)]++);
   $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Ogni giorno · ripasso</div><h1 class="title">Quaderno degli errori</h1>
    <p class="subtitle">Ogni risposta sbagliata finisce qui e torna a trovarti dopo 1, 3, 7 e 15 giorni. Se la indovini quattro volte di fila, la consideri imparata.</p></header>
    <div class="rgrid">
-    <div class="card ${due.length?'due':''}"><span class="lab">Da ripassare oggi</span><b class="big">${due.length}</b><div class="btnrow"><button class="btn primary" id="rvstart" ${due.length?'':'disabled'}>Inizia il ripasso</button></div></div>
-    <div class="card"><span class="lab">In attesa</span><b class="big">${all.length-due.length}</b><button class="btn" id="rvall" ${all.length?'':'disabled'}>Ripassa tutto in anticipo</button></div>
+    <div class="card ${due.length?'due':''}"><span class="lab">Da ripassare oggi</span><b class="big">${due.length}</b><span class="note">${due0.length} errori · ${mt.length} carte della memoria</span><div class="btnrow"><button class="btn primary" id="rvstart" ${due.length?'':'disabled'}>Inizia il ripasso</button></div></div>
+    <div class="card"><span class="lab">In attesa</span><b class="big">${all.length-due0.length}</b><button class="btn" id="rvall" ${all.length?'':'disabled'}>Ripassa tutto in anticipo</button></div>
     <div class="card"><span class="lab">Imparati</span><b class="big">${S.mastered}</b><span class="note">errori trasformati in certezze</span></div>
    </div>
    <div class="boxes">${boxes.map((n,i)=>`<div class="box"><span class="lab">Scatola ${i+1}</span><b>${n}</b><span class="note">torna ${BOXLAB[i]}</span></div>`).join('')}</div>
+   <section class="card memcard"><div class="card-h"><div><span class="lab">Memoria a lungo termine</span><h3>Quello che sai già, ripassato al momento giusto</h3></div></div>
+    <p>Anche le risposte <b>giuste</b> si dimenticano. Per ogni serie di esercizi che completi, alcune frasi entrano qui, insieme ai verbi dei tempi che hai studiato. Tornano dopo 3, 7, 15, 30 e 60 giorni, al massimo ${MEM_PER_DAY} al giorno dentro il ripasso del giorno. Se sbagli, la carta ricomincia e la frase va anche nel quaderno degli errori.</p>
+    <div class="boxes"><div class="box"><span class="lab">Nella memoria</span><b>${ms.n}</b><span class="note">carte in giro</span></div><div class="box"><span class="lab">Oggi</span><b>${mt.length}</b><span class="note">da ripassare</span></div><div class="box"><span class="lab">Consolidate</span><b>${ms.done}</b><span class="note">5 ripassi giusti</span></div></div></section>
    <section class="card" id="rvcard" hidden></section>
    <section class="card"><div class="card-h"><div><span class="lab">Elenco</span><h3>Tutti gli errori salvati</h3></div><span class="note">${all.length} in totale</span></div>
     ${all.length?`<ul class="errlist">${all.sort((a,b)=>S.err[a].due.localeCompare(S.err[b].due)).slice(0,300).map(k=>{ const e=S.err[k]; return `<li><div><div class="el-t">${esc(errLabel(e))}</div><div class="note">${esc(e.src)} · scatola ${e.b+1} · ${e.due<=dayKey()?'<b class="due-t">oggi</b>':'il '+new Date(e.due+'T12:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short'})}${e.w>1?` · sbagliato ${e.w} volte`:''}</div></div><button class="btn ghost" data-del="${esc(k)}" title="Rimuovi">Rimuovi</button></li>`; }).join('')}</ul>`:`<p>Ancora nessun errore salvato. Quando sbagli un esercizio, una frase, un verbo o una parola, lo ritrovi qui.</p>`}
    </section>`;
-  $('#rvstart').onclick=()=>startReview(errDue());
+  $('#rvstart').onclick=()=>startDaily();
   $('#rvall').onclick=()=>startReview(Object.keys(S.err));
   $('#main').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ removeErr(b.dataset.del); renderNav(route()); renderRipasso(); });
+}
+function startDaily(){
+  const list=[...errDue().map(key=>({e:S.err[key],lab:`${S.err[key].src} · scatola ${S.err[key].b+1}`,onRes:ok=>reviewResult(key,ok)})),
+    ...memToday().map(key=>{ const it=memItem(key); if(!it){ delete S.mem[key]; return null; } return {e:it,lab:'Memoria · '+it.src,onRes:ok=>memResult(key,ok,it)}; }).filter(Boolean)];
+  const c=$('#rvcard'); c.hidden=false; c.scrollIntoView({block:'start',behavior:'smooth'});
+  quizRun(c,shuffle(list),{onEnd:(ok,tot,card)=>{ S.revDays[dayKey()]=1; save();
+    card.innerHTML=`<div class="drill"><div class="pen" style="font-size:40px">Finito!</div><p class="lead" style="margin:10px auto">${ok} giuste su ${tot}. Le risposte giuste vanno avanti; quelle sbagliate tornano domani.</p><div class="btnrow" style="justify-content:center"><button class="btn primary" id="rvback">Torna al quaderno</button></div></div>`;
+    $('#rvback').onclick=()=>{ renderNav(route()); renderRipasso(); }; }});
 }
 function startReview(keys){
   rvQueue=shuffle(keys); rvPos=0; rvOk=0;
@@ -6333,7 +6377,7 @@ async function push(){
 function mergeState(a,b){
   const [n,o]=(a.at||0)>=(b.at||0)?[a,b]:[b,a];
   const r=JSON.parse(JSON.stringify(n)), O=JSON.parse(JSON.stringify(o));
-  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
+  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
   r.write=Object.assign({},O.write||{},r.write||{});
   Object.keys(O.write||{}).forEach(k=>{ if(O.write[k]&&O.write[k].done&&r.write[k]) r.write[k].done=true; });
   r.days=Object.assign({},O.days||{}); Object.entries(n.days||{}).forEach(([k,v])=>{ r.days[k]=Math.max(v,r.days[k]||0); });
@@ -6579,7 +6623,7 @@ function dictCard(box,sentence,src,onDone){
 function orderSentences(u){ const s=u.ex.find(x=>x.t==='order'); return s?s.items.map(i=>i[0]):[]; }
 
 /* ---------- pagina: Ascolto ---------- */
-let ascMode='dettato', ascLvl=0;
+let ascMode='dettato', ascLvl='mie';
 function renderAscolto(id){
   if(id!==undefined) return renderDialogo(id);
   $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Ascolto e parlato · ascolto</div><h1 class="title">Ascolto</h1>
@@ -6590,10 +6634,12 @@ function renderAscolto(id){
   $('#main').querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ ascMode=b.dataset.m; renderAscolto(); });
   const ab=$('#ascbody');
   if(ascMode==='dettato'){
-    ab.innerHTML=`<div class="chipsel" style="margin-bottom:14px">${BANDS.map((b,i)=>`<button data-l="${i}" aria-pressed="${ascLvl===i}">${b}</button>`).join('')}</div>${rateSel()}<section class="card" id="dcard"></section><p class="note" id="dstat"></p>`;
+    const mine=dictPool(studiedUnits());
+    if(ascLvl==='mie'&&!mine.length) ascLvl=0;
+    ab.innerHTML=`<div class="chipsel" style="margin-bottom:14px">${mine.length?`<button data-l="mie" aria-pressed="${ascLvl==='mie'}">Le mie unità</button>`:''}${BANDS.map((b,i)=>`<button data-l="${i}" aria-pressed="${ascLvl===i}">${b}</button>`).join('')}</div>${ascLvl==='mie'?`<p class="note">Frasi intere dalle letture e dagli esercizi delle unità che hai già studiato (${studiedUnits().map(u=>uNum(u)).join(', ')}).</p>`:''}${rateSel()}<section class="card" id="dcard"></section><p class="note" id="dstat"></p>`;
     bindRate(ab);
-    ab.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{ ascLvl=+b.dataset.l; renderAscolto(); });
-    const pool=[].concat(...UNITS.filter(u=>u.band===ascLvl).map(u=>orderSentences(u).map(s=>[s,u])));
+    ab.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{ ascLvl=b.dataset.l==='mie'?'mie':+b.dataset.l; renderAscolto(); });
+    const pool=ascLvl==='mie'?mine:[].concat(...UNITS.filter(u=>u.band===ascLvl).map(u=>orderSentences(u).map(s=>[s,u])));
     let last=null;
     const next=()=>{ let it; do{ it=pool[Math.floor(Math.random()*pool.length)]; }while(pool.length>1&&it===last); last=it;
       const c=$('#dcard'); c.innerHTML=`<div class="card-h"><span class="lab">${esc(uName(it[1]))} · dettato</span></div><div id="dbox"></div><div class="btnrow" style="margin-top:10px"><button class="btn" id="dnext">Prossima →</button></div>`;
@@ -7020,6 +7066,205 @@ function renderScheda(id){
   $('#main').querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>speakSeq([{text:s.e[+b.dataset.e]}]));
   const sa=$('#sh-all'); if(sa) sa.onclick=()=>{ if(speakingId==='sh-all'){ stopSpeak(); return; } speakSeq(s.e.map(t=>({text:t})),'sh-all'); };
   $('#main').querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',()=>{ S.tab[u.id]=a.dataset.tab; save(); }));
+}
+
+/* ═════════ FISSARE I CONTENUTI ═════════
+   1 · Ripasso misto della settimana      (#misto)
+   2 · Memoria a lungo termine (grammatica e verbi con ripetizione dilazionata, dentro il ripasso del giorno)
+   3 · «Ti ricordi?»: riscaldamento sull'unità precedente (scheda Lezione)
+   4 · Diario: 3 frasi dopo il corso      (#diario)
+   6 · Dettato delle frasi delle mie unità (#ascolto, «Le mie unità»)            */
+
+const MEM_INT=[3,7,15,30,60];          // dopo 5 ripassi giusti la carta è consolidata
+const MEM_PER_DAY=6;
+const TENSE_AT={pres:104,pp:2,imp:3,fut:6,cond:6,cong:8,cimp:9,pr:12};
+const MEM_VERBS=['essere','avere','fare','andare','venire','stare','dire','potere','volere','dovere','sapere','parlare','prendere','dormire','finire','uscire'];
+
+function uStudied(u){ return !!(S.lesson[u.id]||S.read[u.id]||u.ex.some((_,i)=>S.ex[u.id+'-'+i])); }
+function studiedUnits(){ return UNITS.filter(uStudied); }
+function exItem(u,si,ii){
+  const set=u.ex[si]; if(!set) return null; const it=set.items[ii]; if(!it) return null;
+  const key=`${u.id}-${si}-${ii}`, src=uName(u)+' · serie '+String.fromCharCode(65+si);
+  if(set.t==='fill') return {key,k:'fill',d:{p:it[0],a:it[1],e:it[2]||''},src};
+  if(set.t==='fix') return {key,k:'fix',d:{p:it[0],a:it[1],c:it[2]},src};
+  if(set.t==='mc') return {key,k:'mc',d:{q:it[0],o:it[1],c:it[2],e:it[3]||''},src};
+  if(set.t==='order') return {key,k:'order',d:{s:it[0],al:it[1]||[]},src};
+  return null;
+}
+function unitItems(u,onlyDone){ const out=[]; u.ex.forEach((set,si)=>{ if(onlyDone&&!S.ex[u.id+'-'+si]) return; set.items.forEach((_,ii)=>{ const x=exItem(u,si,ii); if(x) out.push(x); }); }); return out; }
+function verbItem(v,t){
+  if(!VERBI[v]) return null; let f; try{ f=coniuga(v,t); }catch(e){ return null; }
+  const ps=(f||[]).map((x,i)=>x&&x!=='—'?i:-1).filter(i=>i>=0); if(!ps.length) return null;
+  const p=ps[Math.floor(Math.random()*ps.length)];
+  return {key:`v-${v}-${t}-${p}`,k:'verb',d:{v,t,p},src:'Verbi · '+TEMPI[t]};
+}
+function tensesOpen(){ return Object.keys(TENSE_AT).filter(t=>{ const u=UNITS.find(x=>x.id===TENSE_AT[t]); return u&&uStudied(u); }); }
+const weekKey=k=>{ const d=kDate(k), wd=(d.getDay()+6)%7; return kAdd(k,-wd); };
+
+/* ---------- 2 · memoria a lungo termine ---------- */
+function memItem(key){
+  if(key.startsWith('v:')){ const [,v,t]=key.split(':'); return verbItem(v,t); }
+  const [uid,si,ii]=key.split('-').map(Number); const u=UNITS.find(x=>x.id===uid);
+  return u?exItem(u,si,ii):null;
+}
+function memSync(){
+  if(!S.mem) return;
+  const t=dayKey(); let added=0;
+  const add=key=>{ if(S.mem[key]||(S.memDone&&S.memDone[key])) return; S.mem[key]={b:0,due:kAdd(t,3+(added%5))}; added++; };
+  UNITS.forEach(u=>u.ex.forEach((set,si)=>{
+    if(!S.ex[u.id+'-'+si]) return;
+    const n=set.items.length, pick=[...new Set([0,Math.floor(n/2),n-1])];
+    pick.forEach(ii=>{ const key=`${u.id}-${si}-${ii}`; if(!S.err[key]) add(key); });
+  }));
+  tensesOpen().forEach(tn=>MEM_VERBS.slice(0,tn==='pres'?16:10).forEach(v=>{ if(VERBI[v]) add(`v:${v}:${tn}`); }));
+  if(added) save();
+  return added;
+}
+function memDue(){ const t=dayKey(); return Object.keys(S.mem||{}).filter(k=>S.mem[k].due<=t).sort((a,b)=>S.mem[a].due.localeCompare(S.mem[b].due)); }
+function memToday(){ const done=(S.memDays&&S.memDays[dayKey()])||0; return memDue().slice(0,Math.max(0,MEM_PER_DAY-done)); }
+function memResult(key,ok,item){
+  const m=S.mem[key]; if(!m) return;
+  const t=dayKey(); S.memDays[t]=(S.memDays[t]||0)+1;
+  if(ok){ m.b++; if(m.b>=MEM_INT.length){ delete S.mem[key]; S.memDone[key]=t; } else m.due=kAdd(t,MEM_INT[m.b]); }
+  else { m.b=0; m.due=kAdd(t,3); if(item) addErr(item.key,item.k,item.d,item.src); }
+  save();
+}
+function memStats(){ const all=Object.keys(S.mem||{}); return {n:all.length,due:memDue().length,today:memToday().length,done:Object.keys(S.memDone||{}).length}; }
+
+/* ---------- motore comune delle domande (usa reviewCard) ---------- */
+function quizRun(card,list,opts){
+  opts=opts||{}; let pos=0, ok=0;
+  const next=()=>{
+    if(pos>=list.length){ opts.onEnd&&opts.onEnd(ok,list.length,card); return; }
+    const it=list[pos];
+    card.innerHTML=`<div class="card-h"><span class="lab">${esc(it.lab||it.e.src||'')}</span><span class="note">${pos+1} / ${list.length}</span></div><div id="rvbody"></div><div class="fb" id="rvfb"></div><div class="btnrow" style="margin-top:14px"><button class="btn primary" id="rvcheck">Verifica</button><button class="btn" id="rvnext" hidden>Avanti →</button></div>`;
+    let answered=false;
+    const finish=(good,html)=>{
+      if(answered) return; answered=true;
+      try{ it.onRes&&it.onRes(good); }catch(e){}
+      tick(); if(good) ok++;
+      $('#rvfb').innerHTML=(good?'<span class="mark ok">Giusto! ✓</span>':'<span class="mark no">Non ancora…</span>')+(html||'');
+      $('#rvcheck').hidden=true; const nx=$('#rvnext'); nx.hidden=false; nx.textContent=pos===list.length-1?'Fine →':'Avanti →'; nx.focus({preventScroll:true});
+    };
+    $('#rvnext').onclick=()=>{ pos++; next(); };
+    reviewCard($('#rvbody'),it.e,finish);
+  };
+  next();
+}
+const errOnWrong=x=>ok=>{ if(!ok&&x.k!=='dict') addErr(x.key,x.k,x.d,x.src); };
+
+/* ---------- 1 · ripasso misto della settimana ---------- */
+function dictPool(units){
+  const out=[];
+  units.forEach(u=>{
+    (u.ex.find(x=>x.t==='order')||{items:[]}).items.forEach(i=>out.push([i[0],u]));
+    if(u.reading) sentencesOf(u.reading.text.replace(/<[^>]+>/g,' ')).forEach(s=>out.push([s,u]));
+    u.ex.filter(x=>x.t==='fill').forEach(set=>set.items.forEach(it=>{ if(Array.isArray(it[1][0])) return; const s=it[0].replace(/\s*\([^()]*\)\s*$/,'').replace('___',it[1][0]); if(!/___/.test(s)) out.push([s,u]); }));
+  });
+  return out.filter(([s])=>{ const n=s.split(/\s+/).length; return n>=4&&n<=14&&!/[—«»"]/.test(s.slice(0,1)); });
+}
+function mistoList(){
+  const us=shuffle(studiedUnits().filter(u=>u.ex.length));
+  const pools=us.map(u=>shuffle(unitItems(u,true).length?unitItems(u,true):unitItems(u)));
+  const list=[]; let round=0;
+  while(list.length<9&&round<3){ pools.forEach(p=>{ if(list.length<9&&p[round]) list.push(p[round]); }); round++; }
+  const ts=tensesOpen(); if(ts.length){ for(let i=0;i<2;i++){ const t=ts[Math.floor(Math.random()*ts.length)], v=MEM_VERBS[Math.floor(Math.random()*10)]; const x=verbItem(v,t); if(x) list.push(x); } }
+  const themes=LESSICO.map((t,i)=>i).filter(i=>S.lexSeen[i]||(LESSICO[i].u&&UNITS.find(u=>u.id===LESSICO[i].u&&uStudied(u))));
+  if(themes.length){ const ti=themes[Math.floor(Math.random()*themes.length)], wi=Math.floor(Math.random()*LESSICO[ti].w.length); list.push({key:'voc-'+hashStr(LESSICO[ti].w[wi][0]),k:'vocab',d:{t:ti,i:wi},src:'Lessico · '+LESSICO[ti].t}); }
+  const out=shuffle(list).map(x=>({e:x,lab:x.src,onRes:errOnWrong(x)}));
+  if(canSpeak){ const dp=shuffle(dictPool(us)).slice(0,2); dp.forEach(([s,u])=>out.push({e:{k:'dict',d:{s},src:uName(u)+' · dettato'},lab:uName(u)+' · dettato'})); }
+  return out;
+}
+function renderMisto(){
+  const wk=weekKey(dayKey()), done=S.misto[wk], us=studiedUnits();
+  const hist=Object.entries(S.misto).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,8);
+  $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Ogni giorno · ripasso</div><h1 class="title">Ripasso misto</h1>
+   <p class="subtitle">Una volta alla settimana, circa 10 minuti: domande mescolate di tutte le unità che hai già studiato, più verbi, lessico e due dettati. Mescolare gli argomenti costringe la memoria a scegliere la regola giusta, ed è così che la regola resta. Le risposte sbagliate vanno nel quaderno degli errori.</p></header>
+   ${us.length<2?`<section class="card"><p>Il ripasso misto si apre quando hai studiato almeno due unità. Per ora ne hai ${us.length}: continua con il piano!</p></section>`:`
+   <section class="card" id="mxcard"><div class="card-h"><div><span class="lab">Settimana del ${kFmt(wk,{day:'numeric',month:'long'})}</span><h3>${done?'Fatto questa settimana ✓':'Il ripasso di questa settimana'}</h3></div>${done?`<span class="score">${done.s}/${done.t}</span>`:''}</div>
+    <p>${us.length} unità studiate: ${us.map(u=>esc(uNum(u))).join(', ')}.</p>
+    <div class="btnrow"><button class="btn primary" id="mxgo">${done?'Rifallo':'Comincia'}</button></div></section>`}
+   ${hist.length?`<section class="card"><div class="card-h"><div><span class="lab">Le ultime settimane</span><h3>I tuoi risultati</h3></div></div><ul class="dots">${hist.map(([k,r])=>`<li>settimana del ${kFmt(k,{day:'numeric',month:'short'})}: <b>${r.s}/${r.t}</b></li>`).join('')}</ul></section>`:''}`;
+  const go=$('#mxgo'); if(!go) return;
+  go.onclick=()=>{
+    const list=mistoList(), card=$('#mxcard');
+    quizRun(card,list,{onEnd:(ok,tot,c)=>{
+      S.misto[wk]={s:ok,t:tot,d:dayKey()}; save(); renderNav(route());
+      c.innerHTML=`<div class="drill"><div class="pen" style="font-size:40px">${ok}/${tot}</div><p class="lead" style="margin:10px auto">${ok>=tot*0.8?'Ottimo: le unità passate sono ancora lì!':ok>=tot*0.5?'Bene. Gli errori sono nel quaderno: torneranno domani.':'Niente panico: è proprio a questo che serve. Gli errori tornano domani nel quaderno.'}</p><div class="btnrow" style="justify-content:center"><a class="btn primary" href="#ripasso">Quaderno degli errori</a><a class="btn" href="#">Torna a oggi</a></div></div>`;
+    }});
+  };
+}
+
+/* ---------- 3 · ti ricordi? ---------- */
+function ricordiHTML(u){
+  const i=UNITS.indexOf(u), prev=UNITS[i-1];
+  if(!prev||!prev.ex.length||!uStudied(prev)) return '';
+  const r=S.ricordi[u.id];
+  return `<section class="card ricordi" id="riccard"><div class="card-h"><div><span class="lab">Riscaldamento · 2 minuti</span><h3>Ti ricordi? 5 domande su ${esc(uName(prev))}</h3></div>${r?`<span class="score">${r.s}/${r.t}</span>`:''}</div>
+   <p class="note">Prima della lezione nuova, richiama quella di prima: ricordare, anche con fatica, è quello che fissa la memoria.</p>
+   <div class="btnrow"><button class="btn ${r?'':'primary'}" id="ricgo" data-prev="${prev.id}">${r?'Rifai il riscaldamento':'Comincia'}</button></div></section>`;
+}
+function bindRicordi(u){
+  const b=$('#ricgo'); if(!b) return;
+  b.onclick=()=>{
+    const prev=UNITS.find(x=>x.id===+b.dataset.prev);
+    const items=shuffle(unitItems(prev).filter(x=>x.k!=='order')).slice(0,5).map(x=>({e:x,lab:x.src,onRes:errOnWrong(x)}));
+    quizRun($('#riccard'),items,{onEnd:(ok,tot,c)=>{ S.ricordi[u.id]={s:ok,t:tot,d:dayKey()}; save();
+      c.innerHTML=`<div class="card-h"><div><span class="lab">Riscaldamento</span><h3>${ok}/${tot} · ${ok>=4?'Tutto chiaro, avanti!':'Gli errori sono nel quaderno: li rivedrai domani.'}</h3></div></div><p class="note">Adesso la lezione nuova, qui sotto.</p>`; }});
+  };
+}
+
+/* ---------- 4 · diario dopo il corso ---------- */
+function isDiaryDay(k){
+  const t=dayType(k); if(t!=='study'&&t!=='class') return false;
+  const p1=kAdd(k,-1), t1=dayType(p1);
+  if(t1==='class') return true;
+  return t1==='work'&&dayType(kAdd(k,-2))==='class';
+}
+function lastClassBefore(k){ for(let i=1;i<=3;i++){ const d=kAdd(k,-i); if(dayType(d)==='class') return d; } return null; }
+function curUnit(){ const s=STEPS().find(x=>!stepDone(x)&&x.uid); return s?UNITS.find(u=>u.id===s.uid):UNITS[UNITS.length-1]; }
+function renderDiario(){
+  const k=dayKey(), cur=curUnit(), ent=S.diario[k]||{f:['','',''],tema:''};
+  const lc=lastClassBefore(k), past=Object.keys(S.diario).filter(d=>d!==k).sort().reverse().slice(0,12);
+  $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Ogni giorno · scrittura</div><h1 class="title">Il mio diario</h1>
+   <p class="subtitle">Il giorno dopo il corso, tre frasi su quello che hai imparato a lezione o nell'unità di adesso. Bastano 5 minuti: scrivere con le tue parole collega il corso al quaderno. Claude corregge solo gli errori veri e li manda nel quaderno degli errori.</p></header>
+   <section class="card"><div class="card-h"><div><span class="lab">${kFmt(k,{weekday:'long',day:'numeric',month:'long'})}${lc?' · dopo il corso di '+kFmt(lc,{weekday:'long'}):''}</span><h3>Tre frasi di oggi</h3></div>${S.diario[k]?'<span class="pen" style="color:var(--verde)">fatto ✓</span>':''}</div>
+    <label class="note" for="dtema">Al corso abbiamo studiato… (anche in portoghese)</label>
+    <input id="dtema" class="dinp" type="text" value="${esc(ent.tema||'')}" placeholder="per esempio: i verbi riflessivi, la famiglia, c'è e ci sono">
+    <p class="note">Idee per l'unità di adesso (${esc(uName(cur))}): <i>${esc(cur.focus.split(';')[0])}</i>.</p>
+    <ol class="dfrasi">${[0,1,2].map(i=>`<li><textarea class="labin" rows="2" data-f="${i}" spellcheck="false" autocapitalize="sentences" placeholder="Frase ${i+1}">${esc(ent.f[i]||'')}</textarea><div class="dcorr" data-c="${i}"></div></li>`).join('')}</ol>
+    <div class="btnrow"><button class="btn primary" id="dgo">Correggi e salva</button><span class="note" id="dmsg"></span></div></section>
+   ${past.length?`<section class="card"><div class="card-h"><div><span class="lab">Le pagine precedenti</span><h3>Il diario</h3></div></div>${past.map(d=>{ const e=S.diario[d]; return `<div class="dpast"><b>${kFmt(d,{weekday:'short',day:'numeric',month:'short'})}</b>${e.tema?` · <span class="note">${esc(e.tema)}</span>`:''}<ul class="dots">${e.f.filter(Boolean).map((f,i)=>{ const c=e.c&&e.c[i]; return `<li>${c&&!c.ok?`<s>${esc(f)}</s> → <span class="corrected">${esc(c.corr)}</span>`:esc(f)}</li>`; }).join('')}</ul></div>`; }).join('')}</section>`:''}`;
+  if(S.diario[k]&&S.diario[k].c) showDiaryCorr(S.diario[k]);
+  $('#dgo').onclick=async()=>{
+    const f=[...document.querySelectorAll('[data-f]')].map(t=>t.value.trim()), tema=$('#dtema').value.trim(), msg=$('#dmsg');
+    if(f.filter(Boolean).length<3){ msg.textContent='Scrivi tutte e tre le frasi.'; return; }
+    const entry={f,tema,d:Date.now()}; S.diario[k]=entry; save(); renderNav(route());
+    const sample=await getSample();
+    if(!sample){ msg.textContent='Salvato. La correzione automatica funziona con la pagina aperta dentro Claude.'; return; }
+    $('#dgo').disabled=true; msg.textContent='Claude sta correggendo…';
+    const prompt=`Sei un'insegnante d'italiano attenta e gentile. La studentessa è brasiliana (parla portoghese e spagnolo) e studia italiano al livello ${cur.lvl}. Ha scritto tre frasi nel suo diario${tema?`; al corso ha studiato: «${tema}»`:''}.
+Per ogni frase: se è corretta e naturale, "ok": true e "corretta" uguale all'originale. Se c'è un errore VERO (grammatica, ortografia, accento, parola sbagliata o inventata, calco dal portoghese o dallo spagnolo), "ok": false, "corretta" = la frase corretta cambiando il meno possibile, "nota" = spiegazione breve in portoghese (massimo 20 parole). Non segnalare come errore scelte corrette di stile o di registro.
+1. ${f[0]}
+2. ${f[1]}
+3. ${f[2]}
+Rispondi solo con un array JSON di 3 oggetti: [{"ok":true,"corretta":"…","nota":""}]`;
+    try{
+      const data=await sample.json(prompt,{cache:false,modelTier:'quick'});
+      const c=(Array.isArray(data)?data:[]).slice(0,3).map((x,i)=>({ok:!!(x&&x.ok)||canon(String(x&&x.corretta||''))===canon(f[i]),corr:String((x&&x.corretta)||f[i]),nota:String((x&&x.nota)||'')}));
+      if(c.length!==3) throw {code:'invalid_json'};
+      entry.c=c; S.diario[k]=entry;
+      c.forEach((x,i)=>{ if(!x.ok) addErr('diario-'+hashStr(f[i]),'lab',{q:f[i],s:'Correggi la frase del tuo diario',a:[x.corr],n:x.nota},'Diario · '+kFmt(k,{day:'numeric',month:'short'})); });
+      save(); tick(); showDiaryCorr(entry);
+      const nErr=c.filter(x=>!x.ok).length;
+      msg.textContent=nErr?`${nErr} ${nErr===1?'frase da sistemare: è':'frasi da sistemare: sono'} nel quaderno degli errori.`:'Perfetto: tre frasi corrette!';
+    }catch(e){ msg.textContent='Salvato. '+errMsg(e); }
+    $('#dgo').disabled=false;
+  };
+}
+function showDiaryCorr(entry){
+  (entry.c||[]).forEach((x,i)=>{ const box=document.querySelector(`[data-c="${i}"]`); if(!box) return;
+    box.innerHTML=x.ok?'<span class="mark ok">giusta ✓</span>':`<span class="mark no">da sistemare</span> <span class="corrected">${esc(x.corr)}</span>${x.nota?`<p class="expl">${esc(x.nota)}</p>`:''}`; });
 }
 
 if(!S.storyMig110){ if(STORIA_SHIFT>=0){ const o=S.story||{}, n={}; Object.keys(o).forEach(k=>{ n[+k>=STORIA_SHIFT?+k+1:k]=o[k]; }); S.story=n; } S.storyMig110=1; save(); }

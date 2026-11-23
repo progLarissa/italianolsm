@@ -8,6 +8,8 @@
 - Verbos, falsos amigos, frases para traduzir, verificações (testes) com certificado
 - Léxico temático com mais de 600 palavras, áudio, cartões, quiz e ditado
 - Caderno de erros com repetição espaçada (1, 3, 7 e 15 dias)
+- Memória de longo prazo: frases dos exercícios já feitos e verbos dos tempos estudados voltam em 3, 7, 15, 30 e 60 dias
+- Ripasso misto semanal (todas as unidades estudadas, verbos, léxico e ditado), aquecimento «Ti ricordi?» antes de cada lição, diário de 3 frases depois da aula e ditado com frases das próprias unidades
 - A história em capítulos *La lettera di Anna*, fichas-resumo e cultura italiana
 - Plano de estudo com datas reais e calendário mensal (aulas às terças e quintas, dias de trabalho em rodízio, férias)
 - Vídeos do canal [Italianeando](https://www.youtube.com/@Italianeando/courses) por unidade e um livro recomendado para cada nível
