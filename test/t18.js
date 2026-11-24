@@ -13,4 +13,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  $('#frrev').click(); await wait(10);
  for(let i=0;i<8;i++){ const lab=$('#frcard .card-h .lab'); if(!lab) break; console.log(' q:', lab.textContent,'|', $('#rvbody').textContent.slice(0,80)); const inp=$('#rvbody input,#rvbody textarea'); if(inp){ inp.value='x'; } $('#rvcheck').click(); await wait(5); $('#rvnext').click(); await wait(5); }
  console.log('end:', $('#frcard').textContent.slice(0,60));
+ $('#frnew').value='Oggi ho lavorato tanto.\nStasera guardo un film.'; $('#fradd').click(); await wait(100); console.log('after add:', $('#frmsg').textContent, '| count', $$('#frlist li').length, '| first', $('#frlist li .frt').textContent, '| recheck btn', !!$('#frcheck'));
+ $$('[data-frdel]')[0].click(); await wait(20); console.log('after del', $$('#frlist li').length);
+ w.location.hash='diario'; await wait(60); console.log('diario bottom:', $$('#main section.card').pop().textContent.replace(/\s+/g,' ').slice(0,120));
  process.exit(0); })();

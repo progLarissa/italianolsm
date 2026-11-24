@@ -5275,7 +5275,7 @@ const KEY='quaderno-italiano-v1';
 let S;
 try{ S = JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ S = {}; }
 function ensureDefaults(){
-  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
+  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
   S.verbi=S.verbi||{ok:0,tot:0,best:0}; S.falsi=S.falsi||{best:0};
   S.lab=S.lab||{trad:{ok:0,tot:0},trasf:{ok:0,tot:0},ord:{ok:0,tot:0}};
   S.goal=S.goal||30; S.mastered=S.mastered||0;
@@ -6667,7 +6667,7 @@ async function push(){
 function mergeState(a,b){
   const [n,o]=(a.at||0)>=(b.at||0)?[a,b]:[b,a];
   const r=JSON.parse(JSON.stringify(n)), O=JSON.parse(JSON.stringify(o));
-  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
+  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
   r.write=Object.assign({},O.write||{},r.write||{});
   Object.keys(O.write||{}).forEach(k=>{ if(O.write[k]&&O.write[k].done&&r.write[k]) r.write[k].done=true; });
   r.days=Object.assign({},O.days||{}); Object.entries(n.days||{}).forEach(([k,v])=>{ r.days[k]=Math.max(v,r.days[k]||0); });
@@ -7155,23 +7155,49 @@ function myWords(fb){
     show(); card.scrollIntoView({block:'nearest'}); };
 }
 function diaryPhrases(){
-  const out=[];
-  Object.keys(S.diario||{}).sort().reverse().forEach(d=>{ const e=S.diario[d]; (e.f||[]).forEach((f,i)=>{ if(!f) return; const c=e.c&&e.c[i];
-    out.push({key:d+'-'+i,d,tema:e.tema||'',orig:f,txt:c&&!c.ok?c.corr:f,err:!!(c&&!c.ok),nota:c&&c.nota||'',checked:!!c}); }); });
-  return out;
+  const out=[], hid=S.frasiHide||{};
+  Object.keys(S.diario||{}).forEach(d=>{ const e=S.diario[d]; (e.f||[]).forEach((f,i)=>{ if(!f||hid[d+'-'+i]) return; const c=e.c&&e.c[i];
+    out.push({key:d+'-'+i,d,t:(e.d||0)+i,tema:e.tema||'',orig:f,txt:c&&!c.ok?c.corr:f,err:!!(c&&!c.ok),nota:c&&c.nota||'',checked:!!c,src:'diario'}); }); });
+  Object.keys(S.frasi||{}).forEach(id=>{ const e=S.frasi[id], c=e.c; if(!e||!e.f) return;
+    out.push({key:id,d:e.d,t:e.t||0,tema:e.tema||'',orig:e.f,txt:c&&!c.ok?c.corr:e.f,err:!!(c&&!c.ok),nota:c&&c.nota||'',checked:!!c,src:'mie'}); });
+  return out.sort((a,b)=>b.d.localeCompare(a.d)||b.t-a.t);
 }
 let frFilt='tutte';
 function myPhrases(fb){
   const all=diaryPhrases(), nErr=all.filter(x=>x.err).length;
-  if(!all.length){ fb.innerHTML=`<section class="card"><div class="card-h"><div><span class="lab">Le mie frasi</span><h3>Ancora nessuna frase</h3></div></div><p>Qui si raccolgono tutte le frasi che scrivi nel <a href="#diario">diario</a>, già corrette, per ripassarle come le parole.</p><div class="btnrow"><a class="btn primary" href="#diario">Scrivi le prime tre frasi</a></div></section>`; return; }
   const list=all.filter(x=>frFilt==='tutte'||(frFilt==='errori'?x.err:!x.err));
-  fb.innerHTML=`<section class="card"><div class="card-h"><div><span class="lab">Dal diario</span><h3>Le mie frasi</h3></div><span class="note">${all.length} frasi · ${nErr} con un errore corretto</span></div>
-    <p>Tutte le frasi che hai scritto nel <a href="#diario">diario</a>, nella versione corretta. Sono frasi tue, sulla tua vita: rileggerle e ripeterle ad alta voce è il modo più rapido per farle diventare automatiche.</p>
+  const unchecked=Object.keys(S.frasi||{}).filter(id=>!S.frasi[id].c);
+  fb.innerHTML=`<section class="card"><div class="card-h"><div><span class="lab">Aggiungi</span><h3>Frasi nuove</h3></div><span class="note">${all.length} frasi</span></div>
+    <p class="note">Scrivi quante frasi vuoi, <b>una per riga</b>: sulla tua giornata, su quello che hai visto al corso o in un video. Claude corregge solo gli errori veri; le frasi entrano qui sotto, nella versione corretta.</p>
+    <textarea id="frnew" class="labin" rows="4" spellcheck="false" autocapitalize="sentences" placeholder="Stamattina ho bevuto un caffè al bar.&#10;Il mio collega si chiama Paolo."></textarea>
+    <input id="frtema" class="dinp" type="text" placeholder="argomento (facoltativo): il passato prossimo, la famiglia…" autocomplete="off">
+    <div class="btnrow"><button class="btn primary" id="fradd" type="button">Correggi e aggiungi</button>${unchecked.length?`<button class="btn" id="frcheck" type="button">Correggi le frasi non corrette (${unchecked.length})</button>`:''}<span class="note" id="frmsg"></span></div></section>
+   ${all.length?`<section class="card"><div class="card-h"><div><span class="lab">Per ripassare</span><h3>Le mie frasi</h3></div><span class="note">${nErr} con un errore corretto</span></div>
+    <p>Le frasi che aggiungi qui e quelle del <a href="#diario">diario</a>, nella versione corretta. Sono frasi tue, sulla tua vita: rileggerle e ripeterle ad alta voce è il modo più rapido per farle diventare automatiche.</p>
     <div class="btnrow"><button class="btn primary" id="frrev" type="button">Ripassa le mie frasi</button><input id="frq" class="vsel" placeholder="Cerca…" autocomplete="off"></div>
-    <div class="chipsel" style="margin-top:12px">${[['tutte','Tutte'],['errori','Con un errore'],['giuste','Giuste al primo colpo']].map(([k,l])=>`<button type="button" data-ff="${k}" aria-pressed="${frFilt===k}">${l}</button>`).join('')}</div></section>
+    <div class="chipsel" style="margin-top:12px">${[['tutte','Tutte'],['errori','Con un errore'],['giuste','Giuste al primo colpo']].map(([k,l])=>`<button type="button" data-ff="${k}" aria-pressed="${frFilt===k}">${l}</button>`).join('')}</div></section>`:''}
    <section class="card" id="frcard" hidden></section>
-   <ul class="frlist" id="frlist">${list.map(x=>`<li>${canSpeak?`<button class="btn ghost play" type="button" data-say="${x.key}" aria-label="Ascolta">▶</button>`:''}<div><div class="frt">${esc(x.txt)}</div>${x.err?`<div class="fro"><s>${esc(x.orig)}</s>${x.nota?` · <span class="note">${esc(x.nota)}</span>`:''}</div>`:''}<div class="note">${kFmt(x.d,{day:'numeric',month:'short'})}${x.tema?' · '+esc(x.tema):''}${x.checked?'':' · non ancora corretta'}</div></div></li>`).join('')}</ul>`;
+   <ul class="frlist" id="frlist">${list.map(x=>`<li>${canSpeak?`<button class="btn ghost play" type="button" data-say="${x.key}" aria-label="Ascolta">▶</button>`:''}<div><div class="frt">${esc(x.txt)}</div>${x.err?`<div class="fro"><s>${esc(x.orig)}</s>${x.nota?` · <span class="note">${esc(x.nota)}</span>`:''}</div>`:''}<div class="note">${kFmt(x.d,{day:'numeric',month:'short'})}${x.src==='diario'?' · diario':''}${x.tema?' · '+esc(x.tema):''}${x.checked?'':' · non ancora corretta'}</div></div><button class="btn ghost frdel" type="button" data-frdel="${x.key}" aria-label="Togli la frase">✕</button></li>`).join('')}</ul>`;
   fb.querySelectorAll('[data-ff]').forEach(b=>b.onclick=()=>{ frFilt=b.dataset.ff; myPhrases(fb); });
+  const msg=t=>{ const m=$('#frmsg'); if(m) m.textContent=t; };
+  const correct=async ids=>{
+    const f=ids.map(id=>S.frasi[id].f);
+    try{ const c=await correggiFrasi(f,(S.frasi[ids[0]]||{}).tema||'',curUnit().lvl);
+      if(!c) return 'Salvate. La correzione automatica funziona con la pagina aperta dentro Claude.';
+      let n=0; ids.forEach((id,i)=>{ S.frasi[id].c=c[i]; if(!c[i].ok){ n++; addErr('fr-'+id,'lab',{q:f[i],s:'Correggi la tua frase',a:[c[i].corr],n:c[i].nota},'Le mie frasi'); } });
+      save(); tick(); return n?`${n} ${n===1?'frase corretta: è':'frasi corrette: sono'} anche nel quaderno degli errori.`:'Tutto giusto ✓';
+    }catch(e){ return 'Salvate. '+errMsg(e); }
+  };
+  $('#fradd').onclick=async()=>{
+    const lines=$('#frnew').value.split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,15), tema=$('#frtema').value.trim();
+    if(!lines.length){ msg('Scrivi almeno una frase.'); return; }
+    const t0=Date.now(), d=dayKey(), ids=lines.map((f,i)=>{ const id='f'+(t0+i).toString(36); S.frasi[id]={f,d,t:t0+i,tema}; return id; });
+    save(); $('#fradd').disabled=true; msg('Claude sta correggendo…');
+    const res=await correct(ids); frFilt='tutte'; myPhrases(fb); msg(res);
+  };
+  const rc=$('#frcheck'); if(rc) rc.onclick=async()=>{ rc.disabled=true; msg('Claude sta correggendo…'); const res=await correct(unchecked.slice(0,15)); myPhrases(fb); msg(res); };
+  fb.querySelectorAll('[data-frdel]').forEach(b=>b.onclick=()=>{ const k=b.dataset.frdel; if(S.frasi[k]){ delete S.frasi[k]; removeErr('fr-'+k); } else S.frasiHide[k]=1; removeErr('frc-'+k); save(); myPhrases(fb); });
+  if(!all.length) return;
   fb.querySelectorAll('[data-say]').forEach(b=>b.onclick=()=>{ const x=all.find(y=>y.key===b.dataset.say); if(x) speak(x.txt); });
   const q=$('#frq'); q.oninput=()=>{ const v=q.value.toLowerCase(); fb.querySelectorAll('#frlist li').forEach(li=>{ li.hidden=v&&!li.textContent.toLowerCase().includes(v); }); };
   $('#frrev').onclick=()=>{
@@ -7181,7 +7207,7 @@ function myPhrases(fb){
       if(!ws.length) return null;
       const w=ws.sort((a,b)=>b.length-a.length)[Math.floor(Math.random()*Math.min(2,ws.length))];
       const p=x.txt.replace(new RegExp('(^|[^a-zàèéìòù])'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-zàèéìòù])'),'$1___');
-      return {e:{key:'fr-'+x.key,k:'fill',d:{p,a:[w],e:'La tua frase: «'+x.txt+'»'},src:'Le mie frasi'},lab:'Le mie frasi · completa'};
+      return {e:{key:'frc-'+x.key,k:'fill',d:{p,a:[w],e:'La tua frase: «'+x.txt+'»'},src:'Le mie frasi'},lab:'Le mie frasi · completa'};
     }).filter(Boolean).map(it=>Object.assign(it,{onRes:ok=>{ if(!ok&&it.e.k==='fill') addErr(it.e.key,'fill',it.e.d,'Le mie frasi'); }}));
     const card=$('#frcard'); card.hidden=false; card.scrollIntoView({block:'nearest',behavior:'smooth'});
     quizRun(card,pool,{onEnd:(ok,tot,c)=>{ c.innerHTML=`<div class="drill"><div class="pen" style="font-size:34px">${ok}/${tot}</div><p>${ok===tot?'Perfetto: le tue frasi sono tue!':'Le frasi sbagliate tornano nel quaderno degli errori.'}</p><div class="btnrow" style="justify-content:center"><button class="btn" id="frmore" type="button">Altre frasi</button></div></div>`; $('#frmore').onclick=()=>$('#frrev').click(); }});
@@ -7549,7 +7575,7 @@ function lastClassBefore(k){ for(let i=1;i<=3;i++){ const d=kAdd(k,-i); if(dayTy
 function curUnit(){ const s=STEPS().find(x=>!stepDone(x)&&x.uid); return s?UNITS.find(u=>u.id===s.uid):UNITS[UNITS.length-1]; }
 function renderDiario(){
   const k=dayKey(), cur=curUnit(), ent=S.diario[k]||{f:['','',''],tema:''};
-  const lc=lastClassBefore(k), past=Object.keys(S.diario).filter(d=>d!==k).sort().reverse().slice(0,12);
+  const lc=lastClassBefore(k);
   $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Ogni giorno · scrittura</div><h1 class="title">Il mio diario</h1>
    <p class="subtitle">Il giorno dopo il corso, tre frasi su quello che hai imparato a lezione o nell'unità di adesso. Bastano 5 minuti: scrivere con le tue parole collega il corso al quaderno. Claude corregge solo gli errori veri e li manda nel quaderno degli errori.</p></header>
    <section class="card"><div class="card-h"><div><span class="lab">${kFmt(k,{weekday:'long',day:'numeric',month:'long'})}${lc?' · dopo il corso di '+kFmt(lc,{weekday:'long'}):''}</span><h3>Tre frasi di oggi</h3></div>${S.diario[k]?'<span class="pen" style="color:var(--verde)">fatto ✓</span>':''}</div>
@@ -7558,26 +7584,19 @@ function renderDiario(){
     <p class="note">Idee per l'unità di adesso (${esc(uName(cur))}): <i>${esc(cur.focus.split(';')[0])}</i>.</p>
     <ol class="dfrasi">${[0,1,2].map(i=>`<li><textarea class="labin" rows="2" data-f="${i}" spellcheck="false" autocapitalize="sentences" placeholder="Frase ${i+1}">${esc(ent.f[i]||'')}</textarea><div class="dcorr" data-c="${i}"></div></li>`).join('')}</ol>
     <div class="btnrow"><button class="btn primary" id="dgo">Correggi e salva</button><span class="note" id="dmsg"></span></div></section>
-   ${past.length?`<section class="card"><div class="card-h"><div><span class="lab">Le pagine precedenti</span><h3>Il diario</h3></div><a class="btn" href="#fuori" data-fm="frasi">Tutte le mie frasi (${diaryPhrases().length}) →</a></div>${past.map(d=>{ const e=S.diario[d]; return `<div class="dpast"><b>${kFmt(d,{weekday:'short',day:'numeric',month:'short'})}</b>${e.tema?` · <span class="note">${esc(e.tema)}</span>`:''}<ul class="dots">${e.f.filter(Boolean).map((f,i)=>{ const c=e.c&&e.c[i]; return `<li>${c&&!c.ok?`<s>${esc(f)}</s> → <span class="corrected">${esc(c.corr)}</span>`:esc(f)}</li>`; }).join('')}</ul></div>`; }).join('')}</section>`:''}`;
+   <section class="card"><div class="card-h"><div><span class="lab">Vuoi scrivere di più?</span><h3>Le mie frasi</h3></div></div>
+    <p>Il diario chiede tre frasi al giorno. Se ne vuoi scrivere altre, quando vuoi e quante vuoi, aggiungile in <b>Le mie frasi</b>: lì trovi anche tutte le frasi del diario, già corrette, per ripassarle.</p>
+    <div class="btnrow"><a class="btn primary" href="#fuori" data-fm="frasi">Le mie frasi (${diaryPhrases().length}) →</a></div></section>`;
   $('#main').querySelectorAll('a[data-fm]').forEach(x=>x.addEventListener('click',()=>{ fuoriMode=x.dataset.fm; }));
   if(S.diario[k]&&S.diario[k].c) showDiaryCorr(S.diario[k]);
   $('#dgo').onclick=async()=>{
     const f=[...document.querySelectorAll('[data-f]')].map(t=>t.value.trim()), tema=$('#dtema').value.trim(), msg=$('#dmsg');
     if(f.filter(Boolean).length<3){ msg.textContent='Scrivi tutte e tre le frasi.'; return; }
     const entry={f,tema,d:Date.now()}; S.diario[k]=entry; save(); renderNav(route());
-    const sample=await getSample();
-    if(!sample){ msg.textContent='Salvato. La correzione automatica funziona con la pagina aperta dentro Claude.'; return; }
     $('#dgo').disabled=true; msg.textContent='Claude sta correggendo…';
-    const prompt=`Sei un'insegnante d'italiano attenta e gentile. La studentessa è brasiliana (parla portoghese e spagnolo) e studia italiano al livello ${cur.lvl}. Ha scritto tre frasi nel suo diario${tema?`; al corso ha studiato: «${tema}»`:''}.
-Per ogni frase: se è corretta e naturale, "ok": true e "corretta" uguale all'originale. Se c'è un errore VERO (grammatica, ortografia, accento, parola sbagliata o inventata, calco dal portoghese o dallo spagnolo), "ok": false, "corretta" = la frase corretta cambiando il meno possibile, "nota" = spiegazione breve in portoghese (massimo 20 parole). Non segnalare come errore scelte corrette di stile o di registro.
-1. ${f[0]}
-2. ${f[1]}
-3. ${f[2]}
-Rispondi solo con un array JSON di 3 oggetti: [{"ok":true,"corretta":"…","nota":""}]`;
     try{
-      const data=await sample.json(prompt,{cache:false,modelTier:'quick'});
-      const c=(Array.isArray(data)?data:[]).slice(0,3).map((x,i)=>({ok:!!(x&&x.ok)||canon(String(x&&x.corretta||''))===canon(f[i]),corr:String((x&&x.corretta)||f[i]),nota:String((x&&x.nota)||'')}));
-      if(c.length!==3) throw {code:'invalid_json'};
+      const c=await correggiFrasi(f,tema,cur.lvl);
+      if(!c){ msg.textContent='Salvato. La correzione automatica funziona con la pagina aperta dentro Claude.'; $('#dgo').disabled=false; return; }
       entry.c=c; S.diario[k]=entry;
       c.forEach((x,i)=>{ if(!x.ok) addErr('diario-'+hashStr(f[i]),'lab',{q:f[i],s:'Correggi la frase del tuo diario',a:[x.corr],n:x.nota},'Diario · '+kFmt(k,{day:'numeric',month:'short'})); });
       save(); tick(); showDiaryCorr(entry);
@@ -7586,6 +7605,17 @@ Rispondi solo con un array JSON di 3 oggetti: [{"ok":true,"corretta":"…","nota
     }catch(e){ msg.textContent='Salvato. '+errMsg(e); }
     $('#dgo').disabled=false;
   };
+}
+async function correggiFrasi(f,tema,lvl){
+  const sample=await getSample(); if(!sample) return null;
+  const prompt=`Sei un'insegnante d'italiano attenta e gentile. La studentessa è brasiliana (parla portoghese e spagnolo) e studia italiano al livello ${lvl}. Ha scritto ${f.length} frasi${tema?`; argomento: «${tema}»`:''}.
+Per ogni frase: se è corretta e naturale, "ok": true e "corretta" uguale all'originale. Se c'è un errore VERO (grammatica, ortografia, accento, parola sbagliata o inventata, calco dal portoghese o dallo spagnolo), "ok": false, "corretta" = la frase corretta cambiando il meno possibile, "nota" = spiegazione breve in portoghese (massimo 20 parole). Non segnalare come errore scelte corrette di stile o di registro.
+${f.map((x,i)=>`${i+1}. ${x}`).join('\n')}
+Rispondi solo con un array JSON di ${f.length} oggetti, nello stesso ordine: [{"ok":true,"corretta":"…","nota":""}]`;
+  const data=await sample.json(prompt,{cache:false,modelTier:'quick'});
+  const c=(Array.isArray(data)?data:[]).slice(0,f.length).map((x,i)=>({ok:!!(x&&x.ok)||canon(String(x&&x.corretta||''))===canon(f[i]),corr:String((x&&x.corretta)||f[i]),nota:String((x&&x.nota)||'')}));
+  if(c.length!==f.length) throw {code:'invalid_json'};
+  return c;
 }
 function showDiaryCorr(entry){
   (entry.c||[]).forEach((x,i)=>{ const box=document.querySelector(`[data-c="${i}"]`); if(!box) return;
