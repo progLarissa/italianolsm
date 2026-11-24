@@ -612,10 +612,27 @@ label.chk{display:inline-flex;gap:6px;align-items:center}
 .vres .vt span{width:auto;min-width:52px;margin-right:6px}
 .frlist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .frlist li{display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.frlist li>div{min-width:0}
+.frlist li>div{min-width:0;flex:1}
 .frt{font-family:var(--f-read);font-size:17px;line-height:1.45}
 .fro{font-size:13px;margin-top:2px}
 .fro s{color:var(--muted)}
+/* tabelle del lessico e delle mie parole: la cella .pt non è un compito del piano */
+.lextbl td.pt{display:table-cell;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;padding:8px 12px}
+@media (max-width: 640px){
+ .seg{display:flex;flex-wrap:wrap;gap:3px;border-radius:14px}
+ .seg button{flex:1 1 auto;white-space:nowrap;border-radius:10px;padding:8px 12px}
+ .tw:has(.lextbl){overflow:visible}
+ .lextbl,.lextbl tbody{display:block;width:100%}
+ .lextbl tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:10px;row-gap:3px;align-items:start;padding:10px 6px;border-bottom:1px solid var(--line)}
+ .lextbl td,.lextbl td.pt{display:block;grid-column:2;border:0;padding:0;min-width:0}
+ .lextbl td.lxp{grid-column:1;grid-row:1 / span 3;width:auto}
+ .lextbl td:last-child{grid-column:3;grid-row:1 / span 3}
+ #mvtbl tr{grid-template-columns:minmax(0,1fr) auto}
+ #mvtbl td{grid-column:1}
+ #mvtbl td:last-child{grid-column:2;grid-row:1 / span 4}
+ #mvtbl td:first-child b{font-size:17px}
+ .lextbl td i{font-size:14px;color:var(--muted)}
+}
 /* libri */
 .books{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .bookc{margin:0;display:flex;flex-direction:column}
