@@ -1857,10 +1857,11 @@ const SRC=['corso','video','libro','podcast','conversazione','altro'];
 function renderFuori(){
   $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Ascolto e parlato · il tuo studio</div><h1 class="title">Fuori dal quaderno</h1>
    <p class="subtitle">Il corso, i video, il tuo libro: raccogli qui le parole nuove, registra il tempo di studio (conta per il tuo obiettivo giornaliero) e racconta che cosa hai letto o visto.</p></header>
-   <div class="seg" role="group">${[['parole','Le mie parole'],['registro','Registro di studio'],['racconta','Racconta'],['libri','Libri'],['risorse','Video e podcast']].map(([k,l])=>`<button data-m="${k}" aria-pressed="${fuoriMode===k}">${l}</button>`).join('')}</div><div id="fbody2"></div>`;
+   <div class="seg" role="group">${[['parole','Le mie parole'],['frasi','Le mie frasi'],['registro','Registro di studio'],['racconta','Racconta'],['libri','Libri'],['risorse','Video e podcast']].map(([k,l])=>`<button data-m="${k}" aria-pressed="${fuoriMode===k}">${l}</button>`).join('')}</div><div id="fbody2"></div>`;
   $('#main').querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ fuoriMode=b.dataset.m; renderFuori(); });
   const fb=$('#fbody2');
   if(fuoriMode==='parole') return myWords(fb);
+  if(fuoriMode==='frasi') return myPhrases(fb);
   if(fuoriMode==='registro') return studyLog(fb);
   if(fuoriMode==='racconta') return racconta(fb);
   if(fuoriMode==='libri') return libri(fb);
@@ -1889,6 +1890,39 @@ function myWords(fb){
       inp.onkeydown=e=>{ if(e.key!=='Enter') return; e.preventDefault(); if(done){ pos++; show(); return; } if(!inp.value.trim()) return; done=true; const r=judge(inp.value,[w.it,w.it.replace(/^(il|lo|la|l'|i|gli|le|un|uno|una|un')\s*/i,'')]); tick(); if(r!=='no') ok++; else addErr('my-'+order[pos],'myvoc',{k:order[pos]},'Le mie parole'); $('#mvfb').innerHTML=(r==='ok'?'<span class="mark ok">Giusto! ✓</span>':r==='acc'?`<span class="mark acc">Quasi: ${esc(w.it)}</span>`:`<span class="mark no">${esc(w.it)}</span>`)+(w.ex?`<p class="expl">${esc(w.ex)}</p>`:'')+'<p class="note">Invio per continuare</p>'; if(canSpeak) speakSeq([{text:w.it}]); };
     };
     show(); card.scrollIntoView({block:'nearest'}); };
+}
+function diaryPhrases(){
+  const out=[];
+  Object.keys(S.diario||{}).sort().reverse().forEach(d=>{ const e=S.diario[d]; (e.f||[]).forEach((f,i)=>{ if(!f) return; const c=e.c&&e.c[i];
+    out.push({key:d+'-'+i,d,tema:e.tema||'',orig:f,txt:c&&!c.ok?c.corr:f,err:!!(c&&!c.ok),nota:c&&c.nota||'',checked:!!c}); }); });
+  return out;
+}
+let frFilt='tutte';
+function myPhrases(fb){
+  const all=diaryPhrases(), nErr=all.filter(x=>x.err).length;
+  if(!all.length){ fb.innerHTML=`<section class="card"><div class="card-h"><div><span class="lab">Le mie frasi</span><h3>Ancora nessuna frase</h3></div></div><p>Qui si raccolgono tutte le frasi che scrivi nel <a href="#diario">diario</a>, già corrette, per ripassarle come le parole.</p><div class="btnrow"><a class="btn primary" href="#diario">Scrivi le prime tre frasi</a></div></section>`; return; }
+  const list=all.filter(x=>frFilt==='tutte'||(frFilt==='errori'?x.err:!x.err));
+  fb.innerHTML=`<section class="card"><div class="card-h"><div><span class="lab">Dal diario</span><h3>Le mie frasi</h3></div><span class="note">${all.length} frasi · ${nErr} con un errore corretto</span></div>
+    <p>Tutte le frasi che hai scritto nel <a href="#diario">diario</a>, nella versione corretta. Sono frasi tue, sulla tua vita: rileggerle e ripeterle ad alta voce è il modo più rapido per farle diventare automatiche.</p>
+    <div class="btnrow"><button class="btn primary" id="frrev" type="button">Ripassa le mie frasi</button><input id="frq" class="vsel" placeholder="Cerca…" autocomplete="off"></div>
+    <div class="chipsel" style="margin-top:12px">${[['tutte','Tutte'],['errori','Con un errore'],['giuste','Giuste al primo colpo']].map(([k,l])=>`<button type="button" data-ff="${k}" aria-pressed="${frFilt===k}">${l}</button>`).join('')}</div></section>
+   <section class="card" id="frcard" hidden></section>
+   <ul class="frlist" id="frlist">${list.map(x=>`<li>${canSpeak?`<button class="btn ghost play" type="button" data-say="${x.key}" aria-label="Ascolta">▶</button>`:''}<div><div class="frt">${esc(x.txt)}</div>${x.err?`<div class="fro"><s>${esc(x.orig)}</s>${x.nota?` · <span class="note">${esc(x.nota)}</span>`:''}</div>`:''}<div class="note">${kFmt(x.d,{day:'numeric',month:'short'})}${x.tema?' · '+esc(x.tema):''}${x.checked?'':' · non ancora corretta'}</div></div></li>`).join('')}</ul>`;
+  fb.querySelectorAll('[data-ff]').forEach(b=>b.onclick=()=>{ frFilt=b.dataset.ff; myPhrases(fb); });
+  fb.querySelectorAll('[data-say]').forEach(b=>b.onclick=()=>{ const x=all.find(y=>y.key===b.dataset.say); if(x) speak(x.txt); });
+  const q=$('#frq'); q.oninput=()=>{ const v=q.value.toLowerCase(); fb.querySelectorAll('#frlist li').forEach(li=>{ li.hidden=v&&!li.textContent.toLowerCase().includes(v); }); };
+  $('#frrev').onclick=()=>{
+    const pool=shuffle(all).slice(0,12).map(x=>{
+      if(x.err) return {e:{k:'lab',d:{q:x.orig,s:'Questa è la frase che avevi scritto: scrivila corretta',a:[x.txt],n:x.nota},src:'Le mie frasi'},lab:'Le mie frasi · correggi'};
+      const ws=x.txt.replace(/[.,!?;:«»"]/g,' ').split(/\s+/).filter(w=>w.length>=4&&!/^[A-ZÀ-Ý]/.test(w));
+      if(!ws.length) return null;
+      const w=ws.sort((a,b)=>b.length-a.length)[Math.floor(Math.random()*Math.min(2,ws.length))];
+      const p=x.txt.replace(new RegExp('(^|[^a-zàèéìòù])'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-zàèéìòù])'),'$1___');
+      return {e:{key:'fr-'+x.key,k:'fill',d:{p,a:[w],e:'La tua frase: «'+x.txt+'»'},src:'Le mie frasi'},lab:'Le mie frasi · completa'};
+    }).filter(Boolean).map(it=>Object.assign(it,{onRes:ok=>{ if(!ok&&it.e.k==='fill') addErr(it.e.key,'fill',it.e.d,'Le mie frasi'); }}));
+    const card=$('#frcard'); card.hidden=false; card.scrollIntoView({block:'nearest',behavior:'smooth'});
+    quizRun(card,pool,{onEnd:(ok,tot,c)=>{ c.innerHTML=`<div class="drill"><div class="pen" style="font-size:34px">${ok}/${tot}</div><p>${ok===tot?'Perfetto: le tue frasi sono tue!':'Le frasi sbagliate tornano nel quaderno degli errori.'}</p><div class="btnrow" style="justify-content:center"><button class="btn" id="frmore" type="button">Altre frasi</button></div></div>`; $('#frmore').onclick=()=>$('#frrev').click(); }});
+  };
 }
 async function checkWords(keys,fb){
   if(!keys.length) return;
@@ -2261,7 +2295,8 @@ function renderDiario(){
     <p class="note">Idee per l'unità di adesso (${esc(uName(cur))}): <i>${esc(cur.focus.split(';')[0])}</i>.</p>
     <ol class="dfrasi">${[0,1,2].map(i=>`<li><textarea class="labin" rows="2" data-f="${i}" spellcheck="false" autocapitalize="sentences" placeholder="Frase ${i+1}">${esc(ent.f[i]||'')}</textarea><div class="dcorr" data-c="${i}"></div></li>`).join('')}</ol>
     <div class="btnrow"><button class="btn primary" id="dgo">Correggi e salva</button><span class="note" id="dmsg"></span></div></section>
-   ${past.length?`<section class="card"><div class="card-h"><div><span class="lab">Le pagine precedenti</span><h3>Il diario</h3></div></div>${past.map(d=>{ const e=S.diario[d]; return `<div class="dpast"><b>${kFmt(d,{weekday:'short',day:'numeric',month:'short'})}</b>${e.tema?` · <span class="note">${esc(e.tema)}</span>`:''}<ul class="dots">${e.f.filter(Boolean).map((f,i)=>{ const c=e.c&&e.c[i]; return `<li>${c&&!c.ok?`<s>${esc(f)}</s> → <span class="corrected">${esc(c.corr)}</span>`:esc(f)}</li>`; }).join('')}</ul></div>`; }).join('')}</section>`:''}`;
+   ${past.length?`<section class="card"><div class="card-h"><div><span class="lab">Le pagine precedenti</span><h3>Il diario</h3></div><a class="btn" href="#fuori" data-fm="frasi">Tutte le mie frasi (${diaryPhrases().length}) →</a></div>${past.map(d=>{ const e=S.diario[d]; return `<div class="dpast"><b>${kFmt(d,{weekday:'short',day:'numeric',month:'short'})}</b>${e.tema?` · <span class="note">${esc(e.tema)}</span>`:''}<ul class="dots">${e.f.filter(Boolean).map((f,i)=>{ const c=e.c&&e.c[i]; return `<li>${c&&!c.ok?`<s>${esc(f)}</s> → <span class="corrected">${esc(c.corr)}</span>`:esc(f)}</li>`; }).join('')}</ul></div>`; }).join('')}</section>`:''}`;
+  $('#main').querySelectorAll('a[data-fm]').forEach(x=>x.addEventListener('click',()=>{ fuoriMode=x.dataset.fm; }));
   if(S.diario[k]&&S.diario[k].c) showDiaryCorr(S.diario[k]);
   $('#dgo').onclick=async()=>{
     const f=[...document.querySelectorAll('[data-f]')].map(t=>t.value.trim()), tema=$('#dtema').value.trim(), msg=$('#dmsg');
