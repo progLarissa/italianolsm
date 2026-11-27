@@ -7,7 +7,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const words={}; ['la scrivania|escrivaninha','il cassetto|a gaveta','sbadigliare|bocejar','lo sgabello|o banquinho','il comodino|o criado-mudo','la federa|a fronha'].forEach((x,i)=>{ const [it,pt]=x.split('|'); words['w'+i]={it,pt,ex:'',src:'corso',d:i,v:true}; });
 words.w5.srs={ivl:3,ease:2.5,reps:2,lapses:0,due:'2026-11-26'};
 (async()=>{
- let dom=mk([2026,10,27,15],JSON.stringify({planMig2:1,storyMig110:1,myvoc:words,ankiCfg:{nuove:3,dir:'pt'}})); let w=dom.window,d=w.document,$=s=>d.querySelector(s),$$=s=>[...d.querySelectorAll(s)];
+ let dom=mk([2026,10,27,15],JSON.stringify({planMig2:1,storyMig110:1,myvoc:words,ankiCfg:{nuove:4}})); let w=dom.window,d=w.document,$=s=>d.querySelector(s),$$=s=>[...d.querySelectorAll(s)];
  await wait(300);
  console.log('head:', $('.ankihead .ankicnt').textContent, '|', $('#ankigo').textContent, '| due labels', $$('.duelab').map(x=>x.textContent).join(','));
  $('#ankigo').click(); await wait(10);

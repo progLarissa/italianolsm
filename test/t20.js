@@ -1,0 +1,7 @@
+// giorno dopo: la carta inversa pt arriva
+const {JSDOM}=require('jsdom'); const fs=require('fs');
+const html=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
+const words={w0:{it:'la scrivania',pt:'escrivaninha',d:0,v:true,srsR:{ivl:1,ease:2.5,reps:1,lapses:0,due:'2026-11-28',first:'2026-11-27'}},w1:{it:'il cassetto',pt:'a gaveta',d:1,v:true,srs:{ivl:3,ease:2.5,reps:2,lapses:0,due:'2026-12-01'}}};
+const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://x.test/#fuori',pretendToBeVisual:true,beforeParse(w){ const RD=w.Date; const fixed=new RD(2026,10,28,10).getTime(); class D extends RD{ constructor(...a){ if(a.length===0) super(fixed); else super(...a);} static now(){return fixed;} } w.Date=D; w.scrollTo=()=>{}; w.Element.prototype.scrollIntoView=function(){}; w.localStorage.setItem('quaderno-italiano-v1',JSON.stringify({planMig2:1,storyMig110:1,myvoc:words})); w.addEventListener('error',e=>console.log('ERR',e.message)); }});
+const d=dom.window.document,$=s=>d.querySelector(s),$$=s=>[...d.querySelectorAll(s)];
+setTimeout(()=>{ console.log('count', $('.ankihead .ankicnt').textContent, '| labels', $$('.duelab').map(x=>x.textContent).join(',')); $('#ankigo').click(); const seen=[]; for(let i=0;i<6&&$('#ankishow');i++){ seen.push($('.ankif .note').textContent+' : '+$('.ankif .ankiw').textContent.trim()); $('#ankishow').click(); $('#ankig [data-g="2"]').click(); } console.log(seen.join('\n')); process.exit(0); },300);

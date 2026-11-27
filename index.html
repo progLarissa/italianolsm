@@ -7173,9 +7173,20 @@ function renderFuori(){
   risorse(fb);
 }
 /* ---------- metodo Anki per «Le mie parole» ---------- */
-function ankiCfg(){ return Object.assign({nuove:15,dir:'pt'},S.ankiCfg||{}); }
-function ankiDue(k){ k=k||dayKey(); return Object.keys(S.myvoc||{}).filter(id=>{ const s=S.myvoc[id].srs; return s&&s.due<=k; }).sort((a,b)=>S.myvoc[a].srs.due.localeCompare(S.myvoc[b].srs.due)); }
-function ankiNew(){ const c=ankiCfg(), done=((S.ankiDays||{})[dayKey()]||{}).n||0; return Object.keys(S.myvoc||{}).filter(id=>!S.myvoc[id].srs).sort((a,b)=>(S.myvoc[a].d||0)-(S.myvoc[b].d||0)).slice(0,Math.max(0,c.nuove-done)); }
+/* ogni parola ha due carte, come in Anki «base e inversa»: pt (português → italiano) e it (italiano → português) */
+function ankiCfg(){ const c=Object.assign({nuove:15,dir:'both'},S.ankiCfg||{}); if(c.dir==='mix') c.dir='both'; return c; }
+const ANKF={pt:'srs',it:'srsR'};
+function ankiDirs(){ const d=ankiCfg().dir; return d==='both'?['it','pt']:[d]; }
+function ankiCards(){ const out=[]; Object.keys(S.myvoc||{}).forEach(id=>ankiDirs().forEach(d=>out.push(id+'|'+d))); return out; }
+const cardW=c=>S.myvoc[c.split('|')[0]], cardS=c=>{ const w=cardW(c); return w&&w[ANKF[c.split('|')[1]]]; };
+function ankiDue(k){ k=k||dayKey(); return ankiCards().filter(c=>{ const s=cardS(c); return s&&s.due<=k; }).sort((a,b)=>cardS(a).due.localeCompare(cardS(b).due)); }
+function ankiNew(){
+  const c=ankiCfg(), t=dayKey(), done=((S.ankiDays||{})[t]||{}).n||0, both=c.dir==='both';
+  const ok=card=>{ const [id,d]=card.split('|'), w=S.myvoc[id]; if(!w||w[ANKF[d]]) return false;
+    if(both&&d==='pt'){ const sib=w.srsR; return !!(sib&&sib.first&&sib.first<t); } /* la carta inversa arriva il giorno dopo la prima */
+    return true; };
+  return ankiCards().filter(ok).sort((a,b)=>(cardW(a).d||0)-(cardW(b).d||0)||(a.endsWith('|it')?-1:1)).slice(0,Math.max(0,c.nuove-done));
+}
 function ankiDay(k){ if(!S.myvoc||!Object.keys(S.myvoc).length) return false; const t=dayType(k); if(t!=='study') return false; if(k===dayKey()) return !!(ankiDue().length||ankiNew().length||(S.ankiDays[k]&&S.ankiDays[k].fin)); return true; }
 function ankiNext(s,g){
   const t=dayKey(); s=s?Object.assign({},s):{ivl:0,ease:2.5,reps:0,lapses:0};
@@ -7185,10 +7196,10 @@ function ankiNext(s,g){
   else if(g===1){ ivl=Math.max(s.ivl+1,Math.round(s.ivl*1.2)); s.ease=Math.max(1.3,+(s.ease-0.15).toFixed(2)); }
   else if(g===2) ivl=Math.max(s.ivl+1,Math.round(s.ivl*s.ease));
   else { ivl=Math.max(s.ivl+2,Math.round(s.ivl*s.ease*1.3)); s.ease=+(s.ease+0.15).toFixed(2); }
-  s.ivl=Math.min(ivl,365); s.reps++; s.due=kAdd(t,s.ivl); delete s.again; return s;
+  s.ivl=Math.min(ivl,365); s.reps++; s.due=kAdd(t,s.ivl); if(!s.first) s.first=t; delete s.again; return s;
 }
 const ivlLab=d=>d<=0?'<10 min':d===1?'1 g':d<30?d+' g':d<365?Math.round(d/30)+' mesi':'1 anno';
-function dueLab(w){ const s=w.srs; if(!s) return 'nuova'; const t=dayKey(); if(s.due<=t) return 'oggi'; const n=Math.round((kDate(s.due)-kDate(t))/864e5); return n===1?'domani':`tra ${ivlLab(n)}`; }
+function dueLab(w){ const ss=ankiDirs().map(d=>w[ANKF[d]]).filter(Boolean); if(!ss.length) return 'nuova'; const s=ss.sort((a,b)=>a.due.localeCompare(b.due))[0]; const t=dayKey(); if(s.due<=t) return 'oggi'; const n=Math.round((kDate(s.due)-kDate(t))/864e5); return n===1?'domani':`tra ${ivlLab(n)}`; }
 function ankiRun(card,fb){
   const t=dayKey(), c=ankiCfg();
   const rev=shuffle(ankiDue()), nw=ankiNew();
@@ -7199,37 +7210,37 @@ function ankiRun(card,fb){
   const day=()=>{ S.ankiDays[t]=S.ankiDays[t]||{n:0,r:0}; return S.ankiDays[t]; };
   const end=()=>{ day().fin=1; save(); renderNav(route());
     const tom=ankiDue(kAdd(t,1)).length;
-    card.innerHTML=`<div class="drill"><div class="pen" style="font-size:34px">Fatto per oggi!</div><p>${stat.done} carte ripassate. Domani: ${tom} ${tom===1?'parola':'parole'} da ripassare${(un=>un?` e ${Math.min(c.nuove,un)} nuove`:'')(Object.keys(S.myvoc).filter(id=>!S.myvoc[id].srs).length)}.</p><div class="btnrow" style="justify-content:center"><button class="btn" type="button" id="ankiback">Torna alla lista</button></div></div>`;
+    card.innerHTML=`<div class="drill"><div class="pen" style="font-size:34px">Fatto per oggi!</div><p>${stat.done} carte ripassate. Domani: ${tom} ${tom===1?'carta':'carte'} da ripassare${(un=>un?` e fino a ${Math.min(c.nuove,un)} nuove`:'')(ankiCards().filter(x=>!cardS(x)).length)}.</p><div class="btnrow" style="justify-content:center"><button class="btn" type="button" id="ankiback">Torna alla lista</button></div></div>`;
     $('#ankiback').onclick=()=>myWords(fb); };
   const show=()=>{
     if(!q.length) return end();
-    const id=q[0], w=S.myvoc[id]; if(!w){ q.shift(); return show(); }
-    const dir=c.dir==='mix'?(Math.random()<.5?'pt':'it'):c.dir;
+    const cid=q[0], [id,dir]=cid.split('|'), w=S.myvoc[id], F=ANKF[dir]; if(!w){ q.shift(); return show(); }
     const front=dir==='pt'?w.pt:w.it, back=dir==='pt'?w.it:w.pt;
-    const isNew=!w.srs, prev=g=>ankiNext(w.srs,g).ivl;
-    const nRev=q.filter(x=>S.myvoc[x]&&S.myvoc[x].srs&&!S.myvoc[x].srs.again).length, nNew=q.filter(x=>S.myvoc[x]&&!S.myvoc[x].srs).length, nAg=q.filter(x=>S.myvoc[x]&&S.myvoc[x].srs&&S.myvoc[x].srs.again).length;
+    const isNew=!w[F], prev=g=>ankiNext(w[F],g).ivl;
+    const nNew=q.filter(x=>cardW(x)&&!cardS(x)).length, nAg=q.filter(x=>cardS(x)&&cardS(x).again).length, nRev=q.filter(x=>cardS(x)&&!cardS(x).again).length;
     card.innerHTML=`<div class="card-h"><span class="lab">Le mie parole · metodo Anki</span><span class="ankicnt"><b class="cn">${nNew}</b> <b class="cr">${nAg}</b> <b class="cg">${nRev}</b></span></div>
-     <div class="ankif"><span class="note">${isNew?'nuova · ':''}${dir==='pt'?'come si dice in italiano?':'che cosa significa?'}</span><div class="ankiw">${esc(front)}</div></div>
+     <div class="ankif"><span class="note">${isNew?'nuova · ':''}${dir==='pt'?'português → italiano · come si dice?':'italiano → português · che cosa significa?'}</span><div class="ankiw">${esc(front)}${dir==='it'&&canSpeak?' <button class="btn ghost play" type="button" id="ankisayf" aria-label="Ascolta">▶</button>':''}</div></div>
      <input id="ankiin" class="dinp" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="scrivi la risposta (facoltativo), poi Invio">
-     <div class="ankib" id="ankib" hidden><div class="ankiw it">${esc(back)} ${canSpeak?'<button class="btn ghost play" type="button" id="ankisay" aria-label="Ascolta">▶</button>':''}</div><div id="ankitype"></div>${w.ex?`<p class="ankiex"><i>${esc(w.ex)}</i></p>`:''}<p class="note">${esc(w.src||'')}${w.srs?` · ripassata ${w.srs.reps} ${w.srs.reps===1?'volta':'volte'}`:''}</p></div>
+     <div class="ankib" id="ankib" hidden><div class="ankiw it">${esc(back)} ${canSpeak?'<button class="btn ghost play" type="button" id="ankisay" aria-label="Ascolta">▶</button>':''}</div><div id="ankitype"></div>${w.ex?`<p class="ankiex"><i>${esc(w.ex)}</i></p>`:''}<p class="note">${esc(w.src||'')}${w[F]?` · ripassata ${w[F].reps} ${w[F].reps===1?'volta':'volte'}`:''}</p></div>
      <div class="btnrow ankiact"><button class="btn primary" type="button" id="ankishow">Mostra la risposta</button></div>
      <div class="ankig" id="ankig" hidden>${[['Di nuovo','g0'],['Difficile','g1'],['Bene','g2'],['Facile','g3']].map(([l,cl],g)=>`<button type="button" class="btn ${cl}" data-g="${g}"><small>${ivlLab(prev(g))}</small>${l}</button>`).join('')}</div>
      <p class="note ankikeys">Tastiera: Spazio = mostra, 1–4 = valuta.</p>`;
     const inp=$('#ankiin'); let shown=false;
     const flip=()=>{ if(shown) return; shown=true; $('#ankib').hidden=false; $('#ankig').hidden=false; $('#ankishow').parentElement.hidden=true;
       const typed=inp.value.trim(); inp.disabled=true;
-      if(typed){ const r=judge(typed,[back,back.replace(/^(il|lo|la|l'|i|gli|le|un|uno|una|un')\s*/i,'')]); $('#ankitype').innerHTML=r==='no'?`<span class="mark no">hai scritto: ${esc(typed)}</span>`:`<span class="mark ok">${r==='acc'?'quasi: attenzione agli accenti':'giusto!'}</span>`; }
-      if(canSpeak) speak(w.it); const sb=$('#ankisay'); if(sb) sb.onclick=()=>speak(w.it+(w.ex?'. '+w.ex:''));
+      if(typed){ const r=dir==='pt'?judge(typed,[back,back.replace(/^(il|lo|la|l'|i|gli|le|un|uno|una|un')\s*/i,'')]):judge(typed,back.split(/[,;\/]/).map(x=>x.trim()).filter(Boolean).concat(back.split(/[,;\/]/).map(x=>x.trim().replace(/^(o|a|os|as|um|uma)\s+/i,'')))); $('#ankitype').innerHTML=r==='no'?`<span class="mark no">hai scritto: ${esc(typed)}</span>`:`<span class="mark ok">${r==='acc'?'quasi: attenzione agli accenti':'giusto!'}</span>`; }
+      if(canSpeak&&dir==='pt') speak(w.it); const sb=$('#ankisay'); if(sb) sb.onclick=()=>speak(w.it+(w.ex?'. '+w.ex:''));
       const gb=card.querySelector('[data-g="2"]'); if(gb) gb.focus({preventScroll:true}); };
     const grade=g=>{ if(!shown) return;
-      const wasNew=!w.srs; const ns=ankiNext(w.srs,g); w.srs=ns; const d=day(); if(wasNew) d.n++; d.r++;
-      q.shift(); if(g===0) q.splice(Math.min(3,q.length),0,id); else { stat.done++; if(g>=2) stat.ok++; }
+      const wasNew=!w[F]; w[F]=ankiNext(w[F],g); const d=day(); if(wasNew) d.n++; d.r++;
+      q.shift(); if(g===0) q.splice(Math.min(3,q.length),0,cid); else { stat.done++; if(g>=2) stat.ok++; }
       tick(); save(); show(); };
-    $('#ankishow').onclick=flip;
+    $('#ankishow').onclick=flip; const sf=$('#ankisayf'); if(sf) sf.onclick=()=>speak(w.it);
     inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); flip(); } });
     card.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>grade(+b.dataset.g));
     card.onkeydown=e=>{ if(e.target===inp&&!shown) return; if(e.key===' '||e.key==='Enter'){ if(!shown){ e.preventDefault(); flip(); } } else if(/^[1-4]$/.test(e.key)){ e.preventDefault(); grade(+e.key-1); } };
-    if(matchMedia('(hover:hover)').matches) inp.focus({preventScroll:true});
+    if(dir==='it'&&canSpeak) setTimeout(()=>speak(w.it),150);
+    if(window.matchMedia&&matchMedia('(hover:hover)').matches) inp.focus({preventScroll:true});
   };
   show(); card.scrollIntoView({block:'start',behavior:'smooth'});
 }
@@ -7241,11 +7252,11 @@ function myWords(fb){
    ${(()=>{ const sg=ids.filter(k=>S.myvoc[k].sug); return sg.length?`<section class="card mvsug"><div class="card-h"><div><span class="lab">Da controllare</span><h3>Forse volevi scrivere…</h3></div></div><ul class="errlist">${sg.map(k=>{ const w=S.myvoc[k], x=w.sug; return `<li><div><div class="el-t"><del>${esc(w.it)}</del> → <b>${esc(x.it)}</b> · ${esc(x.pt)}</div>${x.nota?`<div class="note">${esc(x.nota)}</div>`:''}${x.ex?`<div class="note"><i>${esc(x.ex)}</i></div>`:''}</div><div class="btnrow"><button class="btn primary" type="button" data-fix="${k}">Correggi</button><button class="btn ghost" type="button" data-keep="${k}">Va bene così</button></div></li>`; }).join('')}</ul></section>`:''; })()}
    ${(()=>{ const un=ids.filter(k=>!S.myvoc[k].v&&!S.myvoc[k].sug); return un.length?`<div class="btnrow" style="margin-bottom:12px"><button class="btn" type="button" id="mvcheck">Controlla le parole non verificate (${un.length})</button></div>`:''; })()}
    ${ids.length?`<section class="card ankihead"><div class="card-h"><div><span class="lab">Metodo Anki</span><h3>Ripasso delle mie parole</h3></div><span class="ankicnt" title="nuove · da rivedere"><b class="cn">${ankiNew().length}</b> <b class="cg">${ankiDue().length}</b></span></div>
-     <p class="note">Guarda la carta, prova a ricordare (o scrivi), gira e valuta tu: <b>Di nuovo</b> la ripete subito, <b>Difficile</b> torna presto, <b>Bene</b> e <b>Facile</b> la allontanano di giorni, settimane e mesi. Ogni giorno: le parole in scadenza e ${ankiCfg().nuove} nuove al massimo.</p>
+     <p class="note">Ogni parola ha due carte: <b>italiano → português</b> (la riconosci) e <b>português → italiano</b> (la produci). Guarda la carta, prova a ricordare (o scrivi), gira e valuta tu: <b>Di nuovo</b> la ripete subito, <b>Difficile</b> torna presto, <b>Bene</b> e <b>Facile</b> la allontanano di giorni, settimane e mesi. Ogni giorno: le parole in scadenza e ${ankiCfg().nuove} nuove al massimo.</p>
      <div class="btnrow"><button class="btn primary" id="ankigo" type="button">${ankiDue().length||ankiNew().length?`Ripassa oggi (${ankiDue().length+ankiNew().length})`:'Niente da ripassare oggi ✓'}</button><button class="btn" id="mvrev" type="button">Allenamento scritto</button></div>
      <details class="ankicfg"><summary class="note">Impostazioni</summary>
       <div class="cfgrow"><span>Parole nuove al giorno</span><span class="chipsel">${[5,10,15,25].map(n=>`<button type="button" data-an="${n}" aria-pressed="${ankiCfg().nuove===n}">${n}</button>`).join('')}</span></div>
-      <div class="cfgrow"><span>Sul davanti della carta</span><span class="chipsel">${[['pt','português'],['it','italiano'],['mix','misto']].map(([k,l])=>`<button type="button" data-ad="${k}" aria-pressed="${ankiCfg().dir===k}">${l}</button>`).join('')}</span></div></details></section>
+      <div class="cfgrow"><span>Carte per ogni parola<br><small class="note">con «tutte e due» ogni parola ha due carte: prima la riconosci (italiano → português), dal giorno dopo la produci (português → italiano)</small></span><span class="chipsel">${[['both','tutte e due'],['it','italiano → português'],['pt','português → italiano']].map(([k,l])=>`<button type="button" data-ad="${k}" aria-pressed="${ankiCfg().dir===k}">${l}</button>`).join('')}</span></div></details></section>
    <section class="card" id="ankicard" hidden tabindex="-1"></section>
    <div class="btnrow" style="margin-bottom:12px"><input id="mvq" class="vsel" placeholder="Cerca…" autocomplete="off"></div><section class="card" id="mvcard" hidden></section>
    <div class="tw"><table class="tbl lextbl" id="mvtbl">${ids.map(k=>{ const w=S.myvoc[k]; return `<tr data-k="${k}"><td>${canSpeak?`<button class="btn ghost play" type="button" data-say="${k}">▶</button>`:''}<b>${esc(w.it)}</b> ${w.v?'<span class="vok" title="Verificata">✓</span>':w.sug?'<span class="vno" title="Da controllare">?</span>':''} <span class="duelab ${w.srs&&w.srs.due<=dayKey()?'today':''}">${dueLab(w)}</span></td><td class="pt">${esc(w.pt)}</td><td><i>${esc(w.ex||'')}</i></td><td class="note">${esc(w.src||'')}</td><td><button class="btn ghost" type="button" data-del="${k}">Rimuovi</button></td></tr>`; }).join('')}</table></div>`:'<p class="note">Ancora nessuna parola. Aggiungi le parole che incontri nel corso, nei video o nel tuo libro: poi le ripassi qui e, se le sbagli, tornano nel quaderno degli errori.</p>'}`;
