@@ -12,7 +12,7 @@ const KEY='quaderno-italiano-v1';
 let S;
 try{ S = JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ S = {}; }
 function ensureDefaults(){
-  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
+  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide','ankiDays'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
   S.verbi=S.verbi||{ok:0,tot:0,best:0}; S.falsi=S.falsi||{best:0};
   S.lab=S.lab||{trad:{ok:0,tot:0},trasf:{ok:0,tot:0},ord:{ok:0,tot:0}};
   S.goal=S.goal||30; S.mastered=S.mastered||0;
@@ -873,6 +873,7 @@ function fixedTasks(k){
     out.push({id:k+'|log',k:'log',t:'Dopo il corso: registra la lezione e aggiungi le parole nuove',m:5,href:'#fuori',fm:'registro'});
   } else if(t==='study'){ out.push({id:k+'|rev',k:'rev',t:'Ripasso del giorno: errori e memoria',m:5,href:'#ripasso'}); }
   else if(t==='light'){ out.push({id:k+'|rev',k:'rev',t:'Ripasso leggero: quaderno degli errori',m:10,href:'#ripasso'}); }
+  if(ankiDay(k)) out.push({id:k+'|anki',k:'anki',t:'Le mie parole (metodo Anki)',m:5,href:'#fuori',fm:'parole'});
   if(isDiaryDay(k)) out.push({id:k+'|diario',k:'diario',t:'Diario: 3 frasi su quello che hai visto al corso',m:5,href:'#diario'});
   if(isMixDay(k)) out.push({id:k+'|mix',k:'mix',t:'Ripasso misto della settimana',m:10,href:'#misto'});
   return out;
@@ -884,13 +885,14 @@ function isMixDay(k){
   if(wd===0) return ok(k)&&!ok(kAdd(k,-1));
   return false;
 }
-function extraMins(k){ return (isMixDay(k)?10:0)+(isDiaryDay(k)?5:0);
+function extraMins(k){ return (isMixDay(k)?10:0)+(isDiaryDay(k)?5:0)+(ankiDay(k)?5:0);
 }
 function fixedDone(f,k){
   if(S.planChk[f.id]) return true;
   if(f.k==='rev') return !!S.revDays[k]||(k===dayKey()&&errDue().length===0&&memToday().length===0);
   if(f.k==='mix') return !!S.misto[weekKey(k)];
   if(f.k==='diario') return !!S.diario[k];
+  if(f.k==='anki') return !!(S.ankiDays[k]&&S.ankiDays[k].fin)||(k===dayKey()&&!ankiDue().length&&!ankiNew().length);
   if(f.k==='prep') return !!S.schedaDays[k];
   if(f.k==='log') return ((S.log[k]||[]).some(e=>e.t==='corso'));
   return false;
@@ -1404,7 +1406,7 @@ async function push(){
 function mergeState(a,b){
   const [n,o]=(a.at||0)>=(b.at||0)?[a,b]:[b,a];
   const r=JSON.parse(JSON.stringify(n)), O=JSON.parse(JSON.stringify(o));
-  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
+  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide','ankiDays'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
   r.write=Object.assign({},O.write||{},r.write||{});
   Object.keys(O.write||{}).forEach(k=>{ if(O.write[k]&&O.write[k].done&&r.write[k]) r.write[k].done=true; });
   r.days=Object.assign({},O.days||{}); Object.entries(n.days||{}).forEach(([k,v])=>{ r.days[k]=Math.max(v,r.days[k]||0); });
@@ -1867,6 +1869,67 @@ function renderFuori(){
   if(fuoriMode==='libri') return libri(fb);
   risorse(fb);
 }
+/* ---------- metodo Anki per «Le mie parole» ---------- */
+function ankiCfg(){ return Object.assign({nuove:15,dir:'pt'},S.ankiCfg||{}); }
+function ankiDue(k){ k=k||dayKey(); return Object.keys(S.myvoc||{}).filter(id=>{ const s=S.myvoc[id].srs; return s&&s.due<=k; }).sort((a,b)=>S.myvoc[a].srs.due.localeCompare(S.myvoc[b].srs.due)); }
+function ankiNew(){ const c=ankiCfg(), done=((S.ankiDays||{})[dayKey()]||{}).n||0; return Object.keys(S.myvoc||{}).filter(id=>!S.myvoc[id].srs).sort((a,b)=>(S.myvoc[a].d||0)-(S.myvoc[b].d||0)).slice(0,Math.max(0,c.nuove-done)); }
+function ankiDay(k){ if(!S.myvoc||!Object.keys(S.myvoc).length) return false; const t=dayType(k); if(t!=='study') return false; if(k===dayKey()) return !!(ankiDue().length||ankiNew().length||(S.ankiDays[k]&&S.ankiDays[k].fin)); return true; }
+function ankiNext(s,g){
+  const t=dayKey(); s=s?Object.assign({},s):{ivl:0,ease:2.5,reps:0,lapses:0};
+  if(g===0){ if(s.reps>0&&s.ivl>0){ s.lapses++; s.ease=Math.max(1.3,+(s.ease-0.2).toFixed(2)); } s.ivl=0; s.due=t; s.again=true; return s; }
+  let ivl;
+  if(!s.reps||s.ivl===0) ivl=g===3?4:1;
+  else if(g===1){ ivl=Math.max(s.ivl+1,Math.round(s.ivl*1.2)); s.ease=Math.max(1.3,+(s.ease-0.15).toFixed(2)); }
+  else if(g===2) ivl=Math.max(s.ivl+1,Math.round(s.ivl*s.ease));
+  else { ivl=Math.max(s.ivl+2,Math.round(s.ivl*s.ease*1.3)); s.ease=+(s.ease+0.15).toFixed(2); }
+  s.ivl=Math.min(ivl,365); s.reps++; s.due=kAdd(t,s.ivl); delete s.again; return s;
+}
+const ivlLab=d=>d<=0?'<10 min':d===1?'1 g':d<30?d+' g':d<365?Math.round(d/30)+' mesi':'1 anno';
+function dueLab(w){ const s=w.srs; if(!s) return 'nuova'; const t=dayKey(); if(s.due<=t) return 'oggi'; const n=Math.round((kDate(s.due)-kDate(t))/864e5); return n===1?'domani':`tra ${ivlLab(n)}`; }
+function ankiRun(card,fb){
+  const t=dayKey(), c=ankiCfg();
+  const rev=shuffle(ankiDue()), nw=ankiNew();
+  let q=[]; let ri=0, ni=0; while(ri<rev.length||ni<nw.length){ for(let j=0;j<3&&ri<rev.length;j++) q.push(rev[ri++]); if(ni<nw.length) q.push(nw[ni++]); }
+  if(!q.length){ card.hidden=false; card.innerHTML=`<div class="drill"><div class="pen" style="font-size:30px">Niente da ripassare oggi ✓</div><p class="note">Le parole tornano quando è il loro momento. Aggiungine di nuove, se vuoi.</p></div>`; return; }
+  const stat={done:0,ok:0,tot:q.length};
+  card.hidden=false;
+  const day=()=>{ S.ankiDays[t]=S.ankiDays[t]||{n:0,r:0}; return S.ankiDays[t]; };
+  const end=()=>{ day().fin=1; save(); renderNav(route());
+    const tom=ankiDue(kAdd(t,1)).length;
+    card.innerHTML=`<div class="drill"><div class="pen" style="font-size:34px">Fatto per oggi!</div><p>${stat.done} carte ripassate. Domani: ${tom} ${tom===1?'parola':'parole'} da ripassare${(un=>un?` e ${Math.min(c.nuove,un)} nuove`:'')(Object.keys(S.myvoc).filter(id=>!S.myvoc[id].srs).length)}.</p><div class="btnrow" style="justify-content:center"><button class="btn" type="button" id="ankiback">Torna alla lista</button></div></div>`;
+    $('#ankiback').onclick=()=>myWords(fb); };
+  const show=()=>{
+    if(!q.length) return end();
+    const id=q[0], w=S.myvoc[id]; if(!w){ q.shift(); return show(); }
+    const dir=c.dir==='mix'?(Math.random()<.5?'pt':'it'):c.dir;
+    const front=dir==='pt'?w.pt:w.it, back=dir==='pt'?w.it:w.pt;
+    const isNew=!w.srs, prev=g=>ankiNext(w.srs,g).ivl;
+    const nRev=q.filter(x=>S.myvoc[x]&&S.myvoc[x].srs&&!S.myvoc[x].srs.again).length, nNew=q.filter(x=>S.myvoc[x]&&!S.myvoc[x].srs).length, nAg=q.filter(x=>S.myvoc[x]&&S.myvoc[x].srs&&S.myvoc[x].srs.again).length;
+    card.innerHTML=`<div class="card-h"><span class="lab">Le mie parole · metodo Anki</span><span class="ankicnt"><b class="cn">${nNew}</b> <b class="cr">${nAg}</b> <b class="cg">${nRev}</b></span></div>
+     <div class="ankif"><span class="note">${isNew?'nuova · ':''}${dir==='pt'?'come si dice in italiano?':'che cosa significa?'}</span><div class="ankiw">${esc(front)}</div></div>
+     <input id="ankiin" class="dinp" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="scrivi la risposta (facoltativo), poi Invio">
+     <div class="ankib" id="ankib" hidden><div class="ankiw it">${esc(back)} ${canSpeak?'<button class="btn ghost play" type="button" id="ankisay" aria-label="Ascolta">▶</button>':''}</div><div id="ankitype"></div>${w.ex?`<p class="ankiex"><i>${esc(w.ex)}</i></p>`:''}<p class="note">${esc(w.src||'')}${w.srs?` · ripassata ${w.srs.reps} ${w.srs.reps===1?'volta':'volte'}`:''}</p></div>
+     <div class="btnrow ankiact"><button class="btn primary" type="button" id="ankishow">Mostra la risposta</button></div>
+     <div class="ankig" id="ankig" hidden>${[['Di nuovo','g0'],['Difficile','g1'],['Bene','g2'],['Facile','g3']].map(([l,cl],g)=>`<button type="button" class="btn ${cl}" data-g="${g}"><small>${ivlLab(prev(g))}</small>${l}</button>`).join('')}</div>
+     <p class="note ankikeys">Tastiera: Spazio = mostra, 1–4 = valuta.</p>`;
+    const inp=$('#ankiin'); let shown=false;
+    const flip=()=>{ if(shown) return; shown=true; $('#ankib').hidden=false; $('#ankig').hidden=false; $('#ankishow').parentElement.hidden=true;
+      const typed=inp.value.trim(); inp.disabled=true;
+      if(typed){ const r=judge(typed,[back,back.replace(/^(il|lo|la|l'|i|gli|le|un|uno|una|un')\s*/i,'')]); $('#ankitype').innerHTML=r==='no'?`<span class="mark no">hai scritto: ${esc(typed)}</span>`:`<span class="mark ok">${r==='acc'?'quasi: attenzione agli accenti':'giusto!'}</span>`; }
+      if(canSpeak) speak(w.it); const sb=$('#ankisay'); if(sb) sb.onclick=()=>speak(w.it+(w.ex?'. '+w.ex:''));
+      const gb=card.querySelector('[data-g="2"]'); if(gb) gb.focus({preventScroll:true}); };
+    const grade=g=>{ if(!shown) return;
+      const wasNew=!w.srs; const ns=ankiNext(w.srs,g); w.srs=ns; const d=day(); if(wasNew) d.n++; d.r++;
+      q.shift(); if(g===0) q.splice(Math.min(3,q.length),0,id); else { stat.done++; if(g>=2) stat.ok++; }
+      tick(); save(); show(); };
+    $('#ankishow').onclick=flip;
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); flip(); } });
+    card.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>grade(+b.dataset.g));
+    card.onkeydown=e=>{ if(e.target===inp&&!shown) return; if(e.key===' '||e.key==='Enter'){ if(!shown){ e.preventDefault(); flip(); } } else if(/^[1-4]$/.test(e.key)){ e.preventDefault(); grade(+e.key-1); } };
+    if(matchMedia('(hover:hover)').matches) inp.focus({preventScroll:true});
+  };
+  show(); card.scrollIntoView({block:'start',behavior:'smooth'});
+}
 function myWords(fb){
   const ids=Object.keys(S.myvoc).sort((a,b)=>(S.myvoc[b].d||0)-(S.myvoc[a].d||0));
   fb.innerHTML=`<section class="card"><div class="card-h"><div><span class="lab">Aggiungi</span><h3>Una parola nuova</h3></div><span class="note">${ids.length} parole</span></div>
@@ -1874,14 +1937,24 @@ function myWords(fb){
     <p class="note" id="mvmsg">Ogni parola nuova viene controllata (ortografia, articolo e traduzione) prima di entrare nel ripasso.</p></section>
    ${(()=>{ const sg=ids.filter(k=>S.myvoc[k].sug); return sg.length?`<section class="card mvsug"><div class="card-h"><div><span class="lab">Da controllare</span><h3>Forse volevi scrivere…</h3></div></div><ul class="errlist">${sg.map(k=>{ const w=S.myvoc[k], x=w.sug; return `<li><div><div class="el-t"><del>${esc(w.it)}</del> → <b>${esc(x.it)}</b> · ${esc(x.pt)}</div>${x.nota?`<div class="note">${esc(x.nota)}</div>`:''}${x.ex?`<div class="note"><i>${esc(x.ex)}</i></div>`:''}</div><div class="btnrow"><button class="btn primary" type="button" data-fix="${k}">Correggi</button><button class="btn ghost" type="button" data-keep="${k}">Va bene così</button></div></li>`; }).join('')}</ul></section>`:''; })()}
    ${(()=>{ const un=ids.filter(k=>!S.myvoc[k].v&&!S.myvoc[k].sug); return un.length?`<div class="btnrow" style="margin-bottom:12px"><button class="btn" type="button" id="mvcheck">Controlla le parole non verificate (${un.length})</button></div>`:''; })()}
-   ${ids.length?`<div class="btnrow" style="margin-bottom:12px"><button class="btn primary" id="mvrev" type="button">Ripassa le mie parole</button><input id="mvq" class="vsel" placeholder="Cerca…" autocomplete="off"></div><section class="card" id="mvcard" hidden></section>
-   <div class="tw"><table class="tbl lextbl" id="mvtbl">${ids.map(k=>{ const w=S.myvoc[k]; return `<tr data-k="${k}"><td>${canSpeak?`<button class="btn ghost play" type="button" data-say="${k}">▶</button>`:''}<b>${esc(w.it)}</b> ${w.v?'<span class="vok" title="Verificata">✓</span>':w.sug?'<span class="vno" title="Da controllare">?</span>':''}</td><td class="pt">${esc(w.pt)}</td><td><i>${esc(w.ex||'')}</i></td><td class="note">${esc(w.src||'')}</td><td><button class="btn ghost" type="button" data-del="${k}">Rimuovi</button></td></tr>`; }).join('')}</table></div>`:'<p class="note">Ancora nessuna parola. Aggiungi le parole che incontri nel corso, nei video o nel tuo libro: poi le ripassi qui e, se le sbagli, tornano nel quaderno degli errori.</p>'}`;
+   ${ids.length?`<section class="card ankihead"><div class="card-h"><div><span class="lab">Metodo Anki</span><h3>Ripasso delle mie parole</h3></div><span class="ankicnt" title="nuove · da rivedere"><b class="cn">${ankiNew().length}</b> <b class="cg">${ankiDue().length}</b></span></div>
+     <p class="note">Guarda la carta, prova a ricordare (o scrivi), gira e valuta tu: <b>Di nuovo</b> la ripete subito, <b>Difficile</b> torna presto, <b>Bene</b> e <b>Facile</b> la allontanano di giorni, settimane e mesi. Ogni giorno: le parole in scadenza e ${ankiCfg().nuove} nuove al massimo.</p>
+     <div class="btnrow"><button class="btn primary" id="ankigo" type="button">${ankiDue().length||ankiNew().length?`Ripassa oggi (${ankiDue().length+ankiNew().length})`:'Niente da ripassare oggi ✓'}</button><button class="btn" id="mvrev" type="button">Allenamento scritto</button></div>
+     <details class="ankicfg"><summary class="note">Impostazioni</summary>
+      <div class="cfgrow"><span>Parole nuove al giorno</span><span class="chipsel">${[5,10,15,25].map(n=>`<button type="button" data-an="${n}" aria-pressed="${ankiCfg().nuove===n}">${n}</button>`).join('')}</span></div>
+      <div class="cfgrow"><span>Sul davanti della carta</span><span class="chipsel">${[['pt','português'],['it','italiano'],['mix','misto']].map(([k,l])=>`<button type="button" data-ad="${k}" aria-pressed="${ankiCfg().dir===k}">${l}</button>`).join('')}</span></div></details></section>
+   <section class="card" id="ankicard" hidden tabindex="-1"></section>
+   <div class="btnrow" style="margin-bottom:12px"><input id="mvq" class="vsel" placeholder="Cerca…" autocomplete="off"></div><section class="card" id="mvcard" hidden></section>
+   <div class="tw"><table class="tbl lextbl" id="mvtbl">${ids.map(k=>{ const w=S.myvoc[k]; return `<tr data-k="${k}"><td>${canSpeak?`<button class="btn ghost play" type="button" data-say="${k}">▶</button>`:''}<b>${esc(w.it)}</b> ${w.v?'<span class="vok" title="Verificata">✓</span>':w.sug?'<span class="vno" title="Da controllare">?</span>':''} <span class="duelab ${w.srs&&w.srs.due<=dayKey()?'today':''}">${dueLab(w)}</span></td><td class="pt">${esc(w.pt)}</td><td><i>${esc(w.ex||'')}</i></td><td class="note">${esc(w.src||'')}</td><td><button class="btn ghost" type="button" data-del="${k}">Rimuovi</button></td></tr>`; }).join('')}</table></div>`:'<p class="note">Ancora nessuna parola. Aggiungi le parole che incontri nel corso, nei video o nel tuo libro: poi le ripassi qui e, se le sbagli, tornano nel quaderno degli errori.</p>'}`;
   $('#mvf').onsubmit=e=>{ e.preventDefault(); const it=$('#mv-it').value.trim(), pt=$('#mv-pt').value.trim(); if(!it||!pt) return; const k='w'+Date.now().toString(36); S.myvoc[k]={it,pt,ex:$('#mv-ex').value.trim(),src:$('#mv-src').value,d:Date.now(),v:false}; tick(); save(); myWords(fb); setTimeout(()=>$('#mv-it')&&$('#mv-it').focus(),0); checkWords([k],fb); };
   fb.querySelectorAll('[data-fix]').forEach(b=>b.onclick=()=>{ const w=S.myvoc[b.dataset.fix]; if(!w||!w.sug) return; w.it=w.sug.it; w.pt=w.sug.pt; if(w.sug.ex) w.ex=w.sug.ex; w.v=true; delete w.sug; save(); myWords(fb); });
   fb.querySelectorAll('[data-keep]').forEach(b=>b.onclick=()=>{ const w=S.myvoc[b.dataset.keep]; if(!w) return; w.v=true; delete w.sug; save(); myWords(fb); });
   const mc=$('#mvcheck'); if(mc) mc.onclick=()=>checkWords(ids.filter(k=>!S.myvoc[k].v&&!S.myvoc[k].sug).slice(0,40),fb);
   fb.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const k=b.dataset.del; delete S.myvoc[k]; removeErr('my-'+k); save(); myWords(fb); });
   fb.querySelectorAll('[data-say]').forEach(b=>b.onclick=()=>speakSeq([{text:S.myvoc[b.dataset.say].it}]));
+  const ag=$('#ankigo'); if(ag) ag.onclick=()=>ankiRun($('#ankicard'),fb);
+  fb.querySelectorAll('[data-an]').forEach(b=>b.onclick=()=>{ S.ankiCfg=Object.assign(ankiCfg(),{nuove:+b.dataset.an}); save(); myWords(fb); });
+  fb.querySelectorAll('[data-ad]').forEach(b=>b.onclick=()=>{ S.ankiCfg=Object.assign(ankiCfg(),{dir:b.dataset.ad}); save(); myWords(fb); });
   const q=$('#mvq'); if(q) q.oninput=()=>{ const v=q.value.toLowerCase(); fb.querySelectorAll('#mvtbl tr').forEach(tr=>{ tr.hidden=v&&!tr.textContent.toLowerCase().includes(v); }); };
   const rv=$('#mvrev'); if(rv) rv.onclick=()=>{ const order=shuffle(ids).slice(0,20); let pos=0, ok=0; const card=$('#mvcard'); card.hidden=false;
     const show=()=>{ if(pos>=order.length){ card.innerHTML=`<div class="drill"><div class="pen" style="font-size:34px">Fatto!</div><p>${ok} giuste su ${order.length}.</p></div>`; return; }

@@ -633,6 +633,29 @@ label.chk{display:inline-flex;gap:6px;align-items:center}
  #mvtbl td:first-child b{font-size:17px}
  .lextbl td i{font-size:14px;color:var(--muted)}
 }
+/* metodo Anki */
+.ankicnt{display:inline-flex;gap:8px;font-variant-numeric:tabular-nums;font-size:15px}
+.ankicnt .cn{color:var(--blu)}.ankicnt .cr{color:var(--rosso)}.ankicnt .cg{color:var(--verde)}
+#ankicard{outline:none}
+.ankif{text-align:center;padding:18px 0 10px}
+.ankiw{font-family:var(--f-read);font-size:clamp(26px,7vw,38px);line-height:1.2;margin-top:6px;overflow-wrap:anywhere}
+.ankiw.it{color:var(--blu);display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.ankib{text-align:center;border-top:1px dashed var(--line);padding-top:14px;margin-top:8px}
+.ankiex{font-family:var(--f-read);font-size:17px;margin:8px 0 4px}
+#ankicard .dinp{text-align:center}
+.ankiact{justify-content:center}
+.ankig{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
+.ankig .btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;font-weight:600;min-width:0}
+.ankig .btn small{font-weight:500;font-size:12px;opacity:.8}
+.ankig .g0{border-color:var(--rosso);color:var(--rosso)}
+.ankig .g1{border-color:var(--ambra);color:var(--ambra)}
+.ankig .g2{border-color:var(--verde);color:var(--verde)}
+.ankig .g3{border-color:var(--blu);color:var(--blu)}
+.ankikeys{text-align:center;margin-top:10px}
+@media (hover:none){.ankikeys{display:none}}
+.ankicfg{margin-top:10px}
+.duelab{font-family:var(--f-ui);font-size:11.5px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;white-space:nowrap;vertical-align:2px}
+.duelab.today{color:var(--rosso);border-color:color-mix(in srgb,var(--rosso) 40%,var(--line))}
 /* libri */
 .books{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .bookc{margin:0;display:flex;flex-direction:column}

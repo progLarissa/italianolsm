@@ -8,6 +8,7 @@
 - Conjugador sem IA: busca qualquer verbo (infinitivo, forma conjugada ou em português) e mostra todos os tempos, com as formas irregulares em vermelho
 - Verbos, falsos amigos, frases para traduzir, verificações (testes) com certificado
 - Léxico temático com mais de 600 palavras, áudio, cartões, quiz e ditado
+- «Le mie parole» com o método Anki (cartões, autoavaliação Di nuovo / Difficile / Bene / Facile, intervalos que crescem)
 - Caderno de erros com repetição espaçada (1, 3, 7 e 15 dias)
 - Memória de longo prazo: frases dos exercícios já feitos e verbos dos tempos estudados voltam em 3, 7, 15, 30 e 60 dias
 - Ripasso misto semanal (todas as unidades estudadas, verbos, léxico e ditado), aquecimento «Ti ricordi?» antes de cada lição, diário de 3 frases depois da aula e ditado com frases das próprias unidades
