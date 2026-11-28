@@ -1,6 +1,6 @@
 const {JSDOM}=require('jsdom'); const fs=require('fs');
 const html=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
-const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://x.test/#unita-101',pretendToBeVisual:true,beforeParse(w){ w.scrollTo=()=>{}; w.Element.prototype.scrollIntoView=function(){}; w.localStorage.setItem('quaderno-italiano-v1',JSON.stringify({planMig2:1,storyMig110:1,aiLang:'pt'})); w.addEventListener('error',e=>console.log('ERR',e.message)); }});
+const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://x.test/#unita-101',pretendToBeVisual:true,beforeParse(w){ w.scrollTo=()=>{}; w.Element.prototype.scrollIntoView=function(){}; w.localStorage.setItem('quaderno-italiano-v1',JSON.stringify({planMig2:1,storyMig110:1,aiLang:'pt',expLang:'es'})); w.addEventListener('error',e=>console.log('ERR',e.message)); }});
 const w=dom.window,d=w.document,$=s=>d.querySelector(s),$$=s=>[...d.querySelectorAll(s)];
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const tab=n=>{ const b=$$('.tabs button').find(b=>b.textContent.includes(n)); b&&b.click(); };

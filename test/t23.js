@@ -1,0 +1,17 @@
+const {JSDOM}=require('jsdom'); const fs=require('fs');
+const html=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
+const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://x.test/',pretendToBeVisual:true,beforeParse(w){ const RD=w.Date; const fixed=new RD(2026,10,28,13).getTime(); class D extends RD{ constructor(...a){ if(a.length===0) super(fixed); else super(...a);} static now(){return fixed;} } w.Date=D; w.scrollTo=()=>{}; w.Element.prototype.scrollIntoView=function(){}; w.localStorage.setItem('quaderno-italiano-v1',JSON.stringify({planMig2:1,storyMig110:1,lesson:{101:true,102:true}})); w.addEventListener('error',e=>console.log('ERR',e.message)); }});
+const w=dom.window,d=w.document,$=s=>d.querySelector(s),$$=s=>[...d.querySelectorAll(s)];
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{ await wait(400);
+ console.log('nav map:', $$('#nav a[href="#mappa"]').map(a=>a.textContent.replace(/\s+/g,' ')).join(''));
+ w.location.hash='mappa'; await wait(80); console.log('mappa items:', $$('.mappa li').length, 'seen', $$('.mappa li.seen').length);
+ w.location.hash='piano'; await wait(400); console.log('btns now', $$('.trbtn').length);
+ const btn=$('.uhead .subtitle .trbtn'); console.log('piano trbtn:', !!btn); btn.click(); await wait(30); console.log('trout:', $('.trout').textContent.slice(0,90));
+ console.log('other trbtns on piano:', $$('.trbtn').length);
+ w.location.hash='unita-101'; await wait(150); console.log('unit lesson PT:', $('.lesson .lead').textContent.slice(0,40), '| trbtn in lesson?', $$('.lesson .trbtn').length);
+ const S=JSON.parse(w.localStorage.getItem('quaderno-italiano-v1'));
+ const pl=Object.entries(S.plan.a).filter(([k])=>/^[DXYF]/.test(k)).sort((a,b)=>a[1].localeCompare(b[1])); console.log('new steps:', pl.slice(0,8).map(x=>x.join('=')).join(' ')); w.location.hash=''; await wait(300); console.log('today:', $$('.todayplan li').map(l=>l.textContent.replace(/\s+/g,' ').trim()).join(' | ')); w.location.hash='piano'; await wait(300); console.log('week:', $$('.wday').slice(0,4).map(x=>x.textContent.replace(/\s+/g,' ').slice(0,140)).join('\n'));
+ console.log('lex B1 steps:', Object.keys(S.plan.a).filter(k=>/^V[0-7]$/.test(k)).join(','));
+ w.location.hash='fuori'; await wait(100); console.log('fuori trbtns:', $$('.trbtn').length, '| seen keys', Object.keys(JSON.parse(w.localStorage.getItem('quaderno-italiano-v1')).seen||{}).join(','));
+ process.exit(0); })();

@@ -12,7 +12,7 @@ const KEY='quaderno-italiano-v1';
 let S;
 try{ S = JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ S = {}; }
 function ensureDefaults(){
-  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide','ankiDays'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
+  ['lesson','ex','read','write','tab','gen','corr','days','err','errDel','voc','tests','cult','spk','myvoc','log','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide','ankiDays','seen','trc'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object') S[k]={}; });
   S.verbi=S.verbi||{ok:0,tot:0,best:0}; S.falsi=S.falsi||{best:0};
   S.lab=S.lab||{trad:{ok:0,tot:0},trasf:{ok:0,tot:0},ord:{ok:0,tot:0}};
   S.goal=S.goal||30; S.mastered=S.mastered||0;
@@ -69,6 +69,7 @@ function renderNav(route){
   });
   const due=errDue().length;
   h+=`<div class="navgroup"><h4><span>Ogni giorno</span></h4><ul>
+   <li><a class="navlink tool" href="#mappa" ${route.type==='mappa'?'aria-current="page"':''}><span class="n">?</span><span class="t">Mappa del quaderno<br><small class="note">${(()=>{ const n=MAPPA.filter(m=>!mapSeen(m)).length; return n?`${n} sezioni da scoprire`:'tutto scoperto ✓'; })()}</small></span></a></li>
    <li><a class="navlink tool" href="#piano" ${route.type==='piano'?'aria-current="page"':''}><span class="n">▦</span><span class="t">Il mio piano<br><small class="note">calendario con le attività di ogni giorno</small></span></a></li>
    <li><a class="navlink tool" href="#ripasso" ${route.type==='ripasso'?'aria-current="page"':''}><span class="n">✎</span><span class="t">Quaderno degli errori ${due?`<span class="badge">${due}</span>`:''}<br><small class="note">${Object.keys(S.err).length} da ripassare · ${S.mastered} imparati</small></span></a></li>
    <li><a class="navlink tool" href="#misto" ${route.type==='misto'?'aria-current="page"':''}><span class="n">⇄</span><span class="t">Ripasso misto<br><small class="note">${S.misto&&S.misto[weekKey(dayKey())]?'fatto questa settimana ✓':'tutte le unità, una volta alla settimana'}</small></span></a></li>
@@ -103,6 +104,7 @@ function route(){
   if(h==='frasi') return {type:'frasi'};
   if(h==='ripasso') return {type:'ripasso'};
   if(h==='misto') return {type:'misto'};
+  if(h==='mappa') return {type:'mappa'};
   if(h==='diario') return {type:'diario'};
   if(h==='lessico') return {type:'lessico'};
   if(h==='cultura') return {type:'cultura'};
@@ -125,6 +127,7 @@ function route(){
 function render(){
   const r=route();
   stopTestTimer(); stopSpeak(); stopOral();
+  if(S.seen&&!S.seen[r.type]){ S.seen[r.type]=dayKey(); save(); _steps=null; }
   try{ memSync(); }catch(e){}
   try{ autoAhead(); }catch(e){}
   renderNav(r);
@@ -135,6 +138,7 @@ function render(){
   else if(r.type==='frasi') renderLab();
   else if(r.type==='ripasso') renderRipasso();
   else if(r.type==='misto') renderMisto();
+  else if(r.type==='mappa') renderMappa();
   else if(r.type==='diario') renderDiario();
   else if(r.type==='lessico') renderLessico(r.id);
   else if(r.type==='cultura') renderCultura(r.id);
@@ -429,7 +433,7 @@ function md(t){
   });
   close(); return out;
 }
-function aiLang(u){ if(['pt','it','es'].includes(S.aiLang)) return S.aiLang; const low=!u||u.band<=1; return low?((S.expLang||'es')==='es'?'es':'pt'):'it'; }
+function aiLang(u){ if(['pt','it','es'].includes(S.aiLang)) return S.aiLang; const low=!u||u.band<=1; return low?((S.expLang||'pt')==='es'?'es':'pt'):'it'; }
 const LNAME={pt:'portoghese',es:'spagnolo di Spagna',it:'italiano semplice'};
 const lname=(u,up)=>{ const n=LNAME[aiLang(u)]; return up?n.toUpperCase():n; };
 function corrPrompt(u,text){
@@ -566,7 +570,7 @@ function quizFalsi(fb){
     const q=[`Che cosa significa «${f[0]}»?`,opts,opts.indexOf(f[1]),`Attenzione: ${f[2]}. Es.: ${f[3]}`]; q.w=f[0]; return q;
   });
   fb.innerHTML=`<section class="card"><div class="card-h"><div><span class="lab">10 domande casuali</span><h3>Quiz dei falsi amici</h3></div><span class="score" id="fscore">${S.falsi.best?'record '+S.falsi.best+'/10':''}</span></div><ol class="items" id="fq"></ol><div class="btnrow"><button class="btn primary" id="fnew">Nuovo quiz</button></div></section>`;
-  mcList($('#fq'),qs,(s,t)=>{ S.falsi.best=Math.max(S.falsi.best||0,s); save(); $('#fscore').textContent=s+'/'+t+' · record '+S.falsi.best+'/10'; }, i=>['f-'+qs[i].w,'falso',{w:qs[i].w},'Falsi amici']);
+  mcList($('#fq'),qs,(s,t)=>{ S.falsi.best=Math.max(S.falsi.best||0,s); S.falsi.q=(S.falsi.q||(S.falsi.best?1:0))+1; save(); $('#fscore').textContent=s+'/'+t+' · record '+S.falsi.best+'/10'; }, i=>['f-'+qs[i].w,'falso',{w:qs[i].w},'Falsi amici']);
   $('#fnew').onclick=()=>quizFalsi(fb);
 }
 
@@ -823,6 +827,86 @@ function dayType(k){
   if(c.sunFree&&wd===0) return 'free';
   return 'study';
 }
+/* ---------- tutto nel piano: Scopri, letture ad alta voce, ascolti, falsi amici, lessico ---------- */
+const SCOPRI_ORD=['mappa','piano','ripasso','fuori','verbi','scheda','lessico','falsi','frasi','ascolto','leggere','parlare','racconto','cultura','misto','diario'];
+function scopriFor(k){
+  const t=dayKey(); if(k<t||dayType(k)!=='study') return null;
+  const m=r=>MAPPA.find(x=>x.r===r);
+  if(!S.scopriDay||S.scopriDay.d!==t){ const r0=SCOPRI_ORD.find(r=>!(S.seen&&S.seen[r])); S.scopriDay={d:t,r:r0||null}; }
+  const todayR=dayType(t)==='study'?S.scopriDay.r:null;
+  if(k===t) return todayR?m(todayR):null;
+  const rest=SCOPRI_ORD.filter(r=>!(S.seen&&S.seen[r])&&r!==todayR);
+  let n=0; for(let d=kAdd(t,1);d<k;d=kAdd(d,1)) if(dayType(d)==='study') n++;
+  return rest[n]?m(rest[n]):null;
+}
+const X_AT={A1:[102,106,108],A2:[1,3,5],B1:[7,8,9],B2:[11,12,13],C1:[15,16]};
+const Y_AT={A1:[104,109],A2:[2,4],B1:[8,10],B2:[12,14]};
+const F_AT=[103,2,6,10];
+[[0,3],[1,1],[2,5],[3,7],[4,10],[5,11],[6,13],[7,15]].forEach(([i,u])=>{ if(LESSICO[i]&&!LESSICO[i].u) LESSICO[i].u=u; });
+const MAPPA=[
+ {r:'home',h:'#',n:'Oggi',d:'O seu painel do dia: as tarefas de hoje, o calendário e o livro do momento.',q:'Sempre que abrir o caderno. Comece por aqui.'},
+ {r:'piano',h:'#piano',n:'Il mio piano',d:'O cronograma com datas reais: o que fazer em cada dia, calendário do mês e configurações (dias de aula, dias de trabalho, minutos, férias).',q:'Consulte quando quiser. O plano se reorganiza sozinho se você se adiantar ou atrasar.'},
+ {r:'unit',h:'#unita-101',n:'Le unità (P1–P10, 1–16)',d:'O curso principal. Cada unidade tem 5 abas: Lezione (explicação), Lettura (texto com perguntas), Esercizi, Parla e ascolta (falar, ouvir, vídeos) e Scrittura (redação corrigida pela IA).',q:'Todas as abas de todas as unidades estão no plano, em ordem.'},
+ {r:'racconto',h:'#racconto',n:'Il racconto',d:'Uma história em capítulos, um por unidade, escrita com a gramática da unidade.',q:'No plano, um capítulo por unidade.'},
+ {r:'ripasso',h:'#ripasso',n:'Quaderno degli errori',d:'Tudo o que você erra volta aqui depois de 1, 3, 7 e 15 dias, junto com a «memória de longo prazo» (frases que você acertou e verbos).',q:'Todo dia de estudo, 5 minutos.'},
+ {r:'fuori',h:'#fuori',n:'Fuori dal quaderno',d:'Le mie parole (com o método Anki), Le mie frasi, registro de estudo, Racconta, um livro por nível e os vídeos do Italianeando.',q:'Le mie parole: todo dia de estudo (Anki, 5 min). O resto: quando quiser.'},
+ {r:'diario',h:'#diario',n:'Il mio diario',d:'Três frases sobre o que você viu na aula, corrigidas pela IA. Elas vão para «Le mie frasi».',q:'No dia seguinte a cada aula do curso.'},
+ {r:'misto',h:'#misto',n:'Ripasso misto',d:'Perguntas misturadas de todas as unidades já estudadas, mais verbos, léxico e ditados.',q:'Uma vez por semana (sábado), 10 minutos.'},
+ {r:'lessico',h:'#lessico',n:'Lessico tematico',d:'Vocabulário por temas, do A1 ao C1, com áudio, cartas, quiz e ditado.',q:'Cada tema entra no plano junto com uma unidade.'},
+ {r:'test',h:'#verifica-0',n:'Verifiche',d:'Provas no estilo CILS/CELI ao fim de cada bloco, com certificado.',q:'No plano, ao fim de cada bloco de unidades.'},
+ {r:'cultura',h:'#cultura',n:'Cultura italiana',d:'Fichas sobre geografia, história, comida, arte, música, cinema e costumes.',q:'No plano, uma ficha a cada duas unidades.'},
+ {r:'leggere',h:'#leggere',n:'Leggere ad alta voce',d:'Textos para ler em voz alta: ouvir, repetir junto (shadowing) e cronometrar.',q:'No plano, junto com as unidades do mesmo nível.'},
+ {r:'ascolto',h:'#ascolto',n:'Ascolto',d:'Ditados e áudios com perguntas para treinar o ouvido.',q:'Os áudios estão no plano junto com as unidades do nível. O ditado é livre.'},
+ {r:'falsi',h:'#falsi-amici',n:'Falsi amici',d:'Palavras que parecem espanholas ou portuguesas, mas não são: cartas e quiz.',q:'4 vezes no plano (cartas e quiz).'},
+ {r:'verbi',h:'#verbi',n:'Coniugatore',d:'Busque qualquer verbo e veja todos os tempos, sem IA. Também tem um treino de conjugação.',q:'Ferramenta de consulta: use sempre que tiver dúvida. Aparece no plano uma vez, como «Scopri».'},
+ {r:'scheda',h:'#schede',n:'Schede riassuntive',d:'Uma ficha de 2 minutos por unidade: regras, exemplos e a armadilha a evitar.',q:'Fora do plano: ótimas para revisar antes da aula do curso. Aparece uma vez como «Scopri».'},
+ {r:'frasi',h:'#frasi',n:'Frasi da tradurre',d:'Traduzir frases do português, transformar estruturas e reconstruir frases.',q:'Livre. Aparece uma vez como «Scopri».'},
+ {r:'parlare',h:'#parlare',n:'Parlare',d:'Conversas com a IA, frases prontas para cada situação e simulação da prova oral.',q:'Livre. Aparece uma vez como «Scopri». Tente falar um pouco toda semana.'},
+ {r:'mappa',h:'#mappa',n:'Mappa del quaderno',d:'Esta página: o que é cada parte e quando ela aparece no plano.',q:'Sempre que se sentir perdida.'}
+];
+const mapSeen=m=>!!(S.seen&&S.seen[m.r]);
+function renderMappa(){
+  const unseen=MAPPA.filter(m=>!mapSeen(m)).length;
+  $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Come funziona</div><h1 class="title">Mappa del quaderno</h1>
+   <p class="subtitle trdone">O caderno é grande, mas você não precisa decidir nada: <b>siga «Oggi»</b> todo dia e o plano vai levando você por tudo, uma coisa de cada vez. Esta página mostra o que é cada parte e quando ela aparece. ${unseen?`Ainda faltam <b>${unseen}</b> partes para você conhecer: as marcadas com ○.`:'Você já conhece todas as partes ✓'}</p></header>
+   <ol class="mappa">${MAPPA.map(m=>`<li class="${mapSeen(m)?'seen':''}"><a href="${m.h}"><span class="ms">${mapSeen(m)?'✓':'○'}</span><span class="mt"><b>${esc(m.n)}</b><span>${esc(m.d)}</span><span class="mq">📅 ${esc(m.q)}</span></span></a></li>`).join('')}</ol>`;
+}
+/* ---------- traduzione delle spiegazioni in portoghese ---------- */
+const trNorm=t=>String(t).replace(/\s+/g,' ').trim().replace(/\d+/g,'#');
+function trStatic(t){ const k=trNorm(t), v=(typeof TR_PT!=='undefined')&&TR_PT[k]; if(!v) return null; const nums=String(t).match(/\d+/g)||[]; let i=0; return v.replace(/#/g,()=>nums[i++]??'#'); }
+const IT_RX=/\b(il|che|della|delle|degli|sono|per|gli|nel|nella|una|quando|puoi|hai|questo|questa|ogni|anche|sei|tutte|parole|frasi|scrivi|ascolta|leggi|tuo|tua|tuoi)\b/gi, PT_RX=/\b(você|não|são|está|também|isso|para|uma|com|você)\b|[ãõç]/gi;
+function trCandidate(el){
+  if(el.dataset.tr||el.closest('.lesson,.reading,.rtext,.items,#rvbody,.trout,.drill,.ankif,.ankib,.frlist,.vt,.tbl,.dpast,.aiout,.story,.storytext,.mappa,.chatlog,.trdone,.vres,.lextbl,.reader,.scheda .tw')) return false;
+  const t=el.textContent.trim(); if(t.length<50) return false;
+  const it=(t.match(IT_RX)||[]).length, pt=(t.match(PT_RX)||[]).length;
+  return it>=3&&pt<=1;
+}
+async function trToggle(el,btn){
+  let out=el.nextElementSibling&&el.nextElementSibling.classList.contains('trout')?el.nextElementSibling:null;
+  if(out){ out.hidden=!out.hidden; btn.setAttribute('aria-pressed',String(!out.hidden)); return; }
+  const src=el.cloneNode(true); src.querySelectorAll('.trbtn').forEach(b=>b.remove()); const text=src.textContent.replace(/\s+/g,' ').trim();
+  out=document.createElement('div'); out.className='trout'; out.setAttribute('lang','pt-BR'); el.after(out); btn.setAttribute('aria-pressed','true');
+  const st=trStatic(text); if(st){ out.textContent=st; return; }
+  const h=hashStr(text); if(S.trc&&S.trc[h]){ out.textContent=S.trc[h]; return; }
+  const sample=await getSample();
+  if(!sample){ out.textContent='Tradução automática só dentro do Claude. A «Mappa del quaderno» explica cada parte em português.'; return; }
+  out.textContent='Traduzindo…';
+  try{
+    const r=await sample(`Traduci in portoghese brasiliano, in modo naturale e semplice, questo testo dell'interfaccia di un quaderno per studiare italiano. Lascia in italiano gli esempi in italiano, i nomi delle sezioni e dei pulsanti (tra «»). Rispondi solo con la traduzione, senza commenti.\n\n${text}`,{modelTier:'quick'});
+    const tr=String(r&&r.text||'').trim(); out.textContent=tr||'—';
+    if(tr){ S.trc[h]=tr; const ks=Object.keys(S.trc); if(ks.length>250) delete S.trc[ks[0]]; save(); }
+  }catch(e){ out.textContent=errMsg(e); }
+}
+function trDecorate(root){
+  if(!root) return;
+  root.querySelectorAll('.subtitle, section.card > p, .card > p, .callout, p.note').forEach(el=>{
+    if(!trCandidate(el)) return; el.dataset.tr='1';
+    const b=document.createElement('button'); b.type='button'; b.className='trbtn'; b.textContent='PT'; b.title='Traduzir para o português'; b.setAttribute('aria-pressed','false');
+    b.onclick=e=>{ e.preventDefault(); e.stopPropagation(); trToggle(el,b); };
+    el.append(' ',b);
+  });
+}
+let _trT=0; try{ new MutationObserver(()=>{ clearTimeout(_trT); _trT=setTimeout(()=>trDecorate(document.getElementById('main')),60); }).observe(document.getElementById('main'),{childList:true,subtree:true}); }catch(e){}
 function planSteps(){
   const out=[]; let ci=0, n=0;
   UNITS.forEach(u=>{
@@ -834,6 +918,9 @@ function planSteps(){
     const sc=chapterOfUnit(u.id); if(sc>=0) out.push({id:u.id+':S',uid:u.id,k:'S',ch:sc,t:'Racconto · capitolo '+(sc+1),m:10});
     out.push({id:u.id+':P',uid:u.id,k:'P',t:'Parla e ascolta',m:15,tab:'parla'});
     out.push({id:u.id+':W',uid:u.id,k:'W',t:'Scrittura',m:a1?15:big?30:25,tab:'scrittura'});
+    TESTI.forEach((t,ti)=>{ if(X_AT[t.lvl]&&X_AT[t.lvl][TESTI.filter((x,j)=>x.lvl===t.lvl&&j<ti).length]===u.id) out.push({id:'X'+ti,uid:u.id,k:'X',ti,t:'Leggi ad alta voce · '+t.t,m:10}); });
+    ASCOLTI.forEach((a,ai)=>{ if(Y_AT[a.lvl]&&Y_AT[a.lvl][ASCOLTI.filter((x,j)=>x.lvl===a.lvl&&j<ai).length]===u.id) out.push({id:'Y'+ai,uid:u.id,k:'Y',ai,t:'Ascolto · '+a.t,m:10}); });
+    F_AT.forEach((uid,fi)=>{ if(uid===u.id) out.push({id:'F'+fi,uid:u.id,k:'F',fi,t:'Falsi amici · carte e quiz',m:10}); });
     n++;
     if(n%2===0&&ci<CULTURA.length){ out.push({id:'C'+ci,k:'C',ci,t:'Cultura · '+CULTURA[ci].t,m:10}); ci++; }
     const T=TESTS.find(t=>t.units[1]===u.id); if(T) out.push({id:'T'+T.id,k:'T',tid:T.id,t:T.title,m:30});
@@ -852,6 +939,10 @@ function stepAuto(s){
     case 'W': return !!(S.write[s.uid]&&S.write[s.uid].done);
     case 'C': return !!(S.cult[s.ci]&&S.cult[s.ci].read);
     case 'T': return !!S.tests[s.tid];
+    case 'D': return !!(S.seen&&S.seen[s.r]);
+    case 'X': return !!(S.wpm&&(S.wpm['t'+s.ti]||[]).length);
+    case 'Y': return !!(S.asc&&S.asc[s.ai]);
+    case 'F': return ((S.falsi&&(S.falsi.q||(S.falsi.best?1:0)))||0)>=s.fi+1;
     case 'V': { const th=LESSICO[s.ti]; return !!S.lexSeen[s.ti]||th.w.filter(w=>S.voc[w[0]]).length>=th.w.length*0.6; }
   }
   return false;
@@ -891,6 +982,7 @@ function fixedTasks(k){
     out.push({id:k+'|log',k:'log',t:'Dopo il corso: registra la lezione e aggiungi le parole nuove',m:5,href:'#fuori',fm:'registro'});
   } else if(t==='study'){ out.push({id:k+'|rev',k:'rev',t:'Ripasso del giorno: errori e memoria',m:5,href:'#ripasso'}); }
   else if(t==='light'){ out.push({id:k+'|rev',k:'rev',t:'Ripasso leggero: quaderno degli errori',m:10,href:'#ripasso'}); }
+  { const sc=scopriFor(k); if(sc) out.push({id:k+'|scopri',k:'scopri',r:sc.r,t:'Scopri: '+sc.n,m:3,href:sc.h}); }
   if(ankiDay(k)) out.push({id:k+'|anki',k:'anki',t:'Le mie parole (metodo Anki)',m:5,href:'#fuori',fm:'parole'});
   if(isDiaryDay(k)) out.push({id:k+'|diario',k:'diario',t:'Diario: 3 frasi su quello che hai visto al corso',m:5,href:'#diario'});
   if(isMixDay(k)) out.push({id:k+'|mix',k:'mix',t:'Ripasso misto della settimana',m:10,href:'#misto'});
@@ -910,6 +1002,7 @@ function fixedDone(f,k){
   if(f.k==='rev') return !!S.revDays[k]||(k===dayKey()&&errDue().length===0&&memToday().length===0);
   if(f.k==='mix') return !!S.misto[weekKey(k)];
   if(f.k==='diario') return !!S.diario[k];
+  if(f.k==='scopri') return !!(S.seen&&S.seen[f.r]);
   if(f.k==='anki') return !!(S.ankiDays[k]&&S.ankiDays[k].fin)||(k===dayKey()&&!ankiDue().length&&!ankiNew().length);
   if(f.k==='prep') return !!S.schedaDays[k];
   if(f.k==='log') return ((S.log[k]||[]).some(e=>e.t==='corso'));
@@ -933,7 +1026,7 @@ function planEnd(){ const v=Object.values((S.plan&&S.plan.a)||{}); return v.leng
 function taskHTML(it,done,k,opts){
   const s=it.s, past=k<dayKey();
   const label=s?(s.uid?`<b>${esc(uName(UNITS.find(u=>u.id===s.uid)))}</b> · ${esc(s.t)}`:`<b>${esc(s.t)}</b>`):esc(it.t);
-  const href=s?(s.k==='V'?'#lessico-'+s.ti:s.k==='S'?'#racconto-'+s.ch:s.k==='C'?'#cultura-'+s.ci:s.k==='T'?'#verifica-'+s.tid:'#unita-'+s.uid):it.href;
+  const href=s?(s.k==='D'?'#'+(s.r==='scheda'?'schede':s.r==='falsi'?'falsi-amici':s.r):s.k==='X'?'#leggere-'+s.ti:s.k==='Y'?'#ascolto-'+s.ai:s.k==='F'?'#falsi-amici':s.k==='V'?'#lessico-'+s.ti:s.k==='S'?'#racconto-'+s.ch:s.k==='C'?'#cultura-'+s.ci:s.k==='T'?'#verifica-'+s.tid:'#unita-'+s.uid):it.href;
   const id=s?s.id:it.id;
   return `<li class="pt ${done?'ok':past&&s?'late':''}"><button class="ptchk" type="button" data-chk="${esc(id)}" aria-pressed="${done}" aria-label="Segna come fatto">${done?'✓':''}</button><a href="${href}" ${s&&s.tab?`data-tab="${s.tab}" data-uid="${s.uid}"`:''} ${it.fm?`data-fm="${it.fm}"`:''}>${label}</a><span class="ptm">${s?s.m:it.m}′</span></li>`;
 }
@@ -974,7 +1067,7 @@ function updRhythm(){
   lastAllDone=all;
 }
 let calOff=0, calSel=null;
-const KSHORT={L:'lezione',E:'esercizi',R:'lettura',S:'racconto',P:'parla e ascolta',W:'scrittura',C:'cultura',T:'verifica',V:'lessico'};
+const KSHORT={L:'lezione',E:'esercizi',R:'lettura',S:'racconto',P:'parla e ascolta',W:'scrittura',C:'cultura',T:'verifica',V:'lessico',D:'scopri',X:'leggi ad alta voce',Y:'ascolto',F:'falsi amici'};
 function stepShort(s){ const u=s.uid&&UNITS.find(x=>x.id===s.uid); return (u?(u.n||'U'+u.id)+' · ':'')+(s.k==='C'||s.k==='T'?s.t:KSHORT[s.k]); }
 const CAL_ST={done:'fatto',part:'fatto in parte',miss:'da recuperare',plan:'previsto',rest:'',none:''};
 function calState(k,today){
@@ -1036,6 +1129,7 @@ function homeRhythm(){
   const st=planStreak(), due=errDue().length, steps=STEPS(), nd=steps.filter(stepDone).length;
   return `<section class="rhythm-sec">
    <div class="card-h"><h2 class="sec" style="margin:0">Il mio piano</h2><a class="btn" href="#piano">Il piano completo →</a></div>
+   ${(()=>{ const n=MAPPA.filter(m=>!mapSeen(m)).length; return n>3?`<p class="callout small trdone">Não precisa decidir o que estudar: <b>faça só as tarefas de «Oggi»</b>, e o plano vai apresentando cada parte do caderno, uma por dia. Para entender o que é cada coisa, veja a <a href="#mappa">Mappa del quaderno</a> (ainda faltam ${n} partes para conhecer).</p>`:''; })()}
    ${todayCard()}
    <div class="rgrid">
     <div class="card"><span class="lab">Percorso completato</span><b class="big">${Math.round(100*nd/steps.length)}<small>%</small></b><span class="rw-bar"><i style="width:${Math.round(100*nd/steps.length)}%"></i></span><span class="note">${nd} attività su ${steps.length} · fine prevista: ${kFmt(planEnd(),{month:'long',year:'numeric'})}</span></div>
@@ -1424,7 +1518,7 @@ async function push(){
 function mergeState(a,b){
   const [n,o]=(a.at||0)>=(b.at||0)?[a,b]:[b,a];
   const r=JSON.parse(JSON.stringify(n)), O=JSON.parse(JSON.stringify(o));
-  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide','ankiDays'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
+  ['ex','read','corr','gen','lesson','voc','tab','cult','spk','myvoc','orale','wpm','asc','story','planChk','revDays','schedaDays','planToast','lexSeen','books','mem','memDone','memDays','misto','ricordi','diario','frasi','frasiHide','ankiDays','seen','trc'].forEach(f=>{ r[f]=Object.assign({},O[f]||{},r[f]||{}); });
   r.write=Object.assign({},O.write||{},r.write||{});
   Object.keys(O.write||{}).forEach(k=>{ if(O.write[k]&&O.write[k].done&&r.write[k]) r.write[k].done=true; });
   r.days=Object.assign({},O.days||{}); Object.entries(n.days||{}).forEach(([k,v])=>{ r.days[k]=Math.max(v,r.days[k]||0); });
@@ -2465,7 +2559,7 @@ function showDiaryCorr(entry){
 const LANG_UNDO=[];
 function applyExpLang(){
   while(LANG_UNDO.length){ const [o,k,v]=LANG_UNDO.pop(); o[k]=v; }
-  if((S.expLang||'es')!=='es'||typeof ES_AA==='undefined') return;
+  if((S.expLang||'pt')!=='es'||typeof ES_AA==='undefined') return;
   const set=(o,k,v)=>{ if(o==null||v==null) return; LANG_UNDO.push([o,k,o[k]]); o[k]=v; };
   const low=new Set(UNITS.filter(u=>u.band<=1).map(u=>u.id));
   Object.entries(ES_AA).forEach(([key,val])=>{
@@ -2478,7 +2572,7 @@ function applyExpLang(){
   if(ES_STORIA_GL) STORIA.forEach(c=>{ if(!low.has(c.u)) return; let t=c.text; Object.entries(ES_STORIA_GL).forEach(([it,es])=>{ t=t.split('[['+it+'|').map((seg,i)=>i===0?seg:es+seg.slice(seg.indexOf(']]'))).join('[['+it+'|'); }); set(c,'text',t); });
   if(ES_TRAD) Object.entries(ES_TRAD).forEach(([i,[q,n]])=>{ const t=TRAD[+i]; if(t){ set(t,0,q); set(t,3,n); } });
 }
-function langSwitch(){ const l=S.expLang||'es'; return `<div class="langsw" role="group" aria-label="Lingua delle spiegazioni"><span class="note">Explicaciones en</span><button type="button" data-xl="es" aria-pressed="${l==='es'}">español</button><button type="button" data-xl="pt" aria-pressed="${l==='pt'}">português</button></div>`; }
+function langSwitch(){ const l=S.expLang||'pt'; return `<div class="langsw" role="group" aria-label="Lingua delle spiegazioni"><span class="note">Explicaciones en</span><button type="button" data-xl="es" aria-pressed="${l==='es'}">español</button><button type="button" data-xl="pt" aria-pressed="${l==='pt'}">português</button></div>`; }
 function bindLangSwitch(root,rerender){ (root||document).querySelectorAll('[data-xl]').forEach(b=>b.onclick=()=>{ S.expLang=b.dataset.xl; if(S.aiLang==='pt'||S.aiLang==='es') delete S.aiLang; save(); applyExpLang(); rerender(); }); }
 if(!S.langMigES){ S.langMigES=1; if(S.aiLang==='pt') delete S.aiLang; save(); }
 try{ applyExpLang(); }catch(e){ console.warn('lingua',e); }
