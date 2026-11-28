@@ -7670,7 +7670,7 @@ function renderProgressi(){
     <textarea id="pxin" class="labin pxbox" rows="4" placeholder="QIT1z:…" spellcheck="false" autocapitalize="off"></textarea>
     <div class="btnrow"><button class="btn primary" type="button" id="pxim">Importar</button><label class="btn ghost" style="cursor:pointer">Escolher arquivo<input type="file" id="pxfin" accept=".txt,.json,text/plain,application/json" hidden></label><span class="note" id="pximsg"></span></div></section>`;
   let code='';
-  $('#pxgo').onclick=async()=>{ code=await packState(); const o=$('#pxout'); o.value=code; o.hidden=false; $('#pxcopy').hidden=false; $('#pxfile').hidden=false; $('#pxmsg').textContent=`Código pronto (${Math.round(code.length/1024)} KB).`; };
+  $('#pxgo').onclick=async()=>{ code=await packState(); const o=$('#pxout'); o.value=code; o.hidden=false; $('#pxcopy').hidden=false; $('#pxfile').hidden=!!window.claude; $('#pxmsg').textContent=`Código pronto (${Math.round(code.length/1024)} KB).`; };
   $('#pxcopy').onclick=()=>{ const o=$('#pxout'); const done=()=>{ $('#pxmsg').textContent='Copiado ✓'; };
     try{ navigator.clipboard.writeText(code).then(done,()=>{ o.focus(); o.select(); $('#pxmsg').textContent='Selecionei o código: copie com o menu (Copiar).'; }); }catch(e){ o.focus(); o.select(); $('#pxmsg').textContent='Selecionei o código: copie com o menu (Copiar).'; } };
   $('#pxfile').onclick=()=>{ try{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([code],{type:'text/plain'})); a.download='quaderno-italiano-'+dayKey()+'.txt'; document.body.append(a); a.click(); a.remove(); $('#pxmsg').textContent='Se o download não começar (dentro do Claude ele é bloqueado), use «Copiar código».'; }catch(e){ $('#pxmsg').textContent='Use «Copiar código».'; } };
