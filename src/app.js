@@ -225,6 +225,7 @@ function renderUnit(u){
   const tabDone={lezione:parts[0],lettura:parts[1],esercizi:u.ex.every((_,i)=>S.ex[u.id+'-'+i]),scrittura:!!(S.write[u.id]&&S.write[u.id].done),parla:!!(S.spk[u.id]&&S.spk[u.id].done)};
   let h=`<header class="uhead"><div class="eyebrow">${u.n?'Primi passi · '+u.n:'Unità '+String(u.id).padStart(2,'0')} · ${u.lvl}</div>
    <h1 class="title">${esc(u.title)}</h1><p class="subtitle">${esc(u.sub)}</p>
+   ${u.band<=1?langSwitch():''}
    <div class="uprog"><span class="track"><i style="width:${p}%"></i></span><span>${p}% completato</span></div>
    <div class="btnrow ulinks">${SCHEDE[u.id]?`<a class="btn" href="#scheda-${u.id}">Scheda riassuntiva</a>`:''}${chapterOfUnit(u.id)>=0?`<a class="btn" href="#racconto-${chapterOfUnit(u.id)}">Racconto · cap. ${chapterOfUnit(u.id)+1}${storyRead(chapterOfUnit(u.id))?' ✓':''}</a>`:''}</div></header>
    <nav class="tabs" role="tablist">${TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${k===tab}">${l}${tabDone[k]?'<span class="tick">✓</span>':''}</button>`).join('')}</nav>
@@ -235,6 +236,7 @@ function renderUnit(u){
     ${(()=>{ const i=UNITS.indexOf(u), n=UNITS[i+1]; return n?`<a class="btn ghost" href="#unita-${n.id}">${uName(n)} →</a>`:'<a class="btn ghost" href="#verbi">Coniugatore →</a>'; })()}
    </div>`;
   $('#main').innerHTML=h;
+  bindLangSwitch($('.uhead'),()=>renderUnit(u));
   $('#main').querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{ S.tab[u.id]=b.dataset.tab; save(); renderUnit(u); $('.tabs').scrollIntoView({block:'start'}); }));
   const c=$('#tabc');
   if(tab==='lezione') tabLesson(u,c);
@@ -397,7 +399,7 @@ async function generate(u){
   const prompt=`Sei un insegnante d'italiano esperto. Crea 6 esercizi di completamento NUOVI e vari sul tema: ${u.focus}. Livello ${u.lvl}.
 La studentessa è madrelingua portoghese (Brasile) e parla spagnolo fluentemente: almeno 3 frasi devono colpire errori tipici di ispanofoni/lusofoni su questo tema.
 Regole: ogni frase in italiano naturale e moderno, ${u.band===0?'5-12 parole, con lessico molto semplice di livello A1':'8-20 parole'}; contiene esattamente UNA lacuna scritta "___"; dopo la frase, tra parentesi, il suggerimento (es. il verbo all'infinito e la persona). "risposte" elenca tutte le soluzioni corrette accettabili (minuscole, senza punteggiatura). "spiegazione" in ${aiLang(u)==='pt'?'portoghese':'italiano semplice'}, massimo 20 parole.
-Rispondi solo con un array JSON: [{"frase":"Penso che Marco ___ ragione. (avere)","risposte":["abbia"],"spiegazione":"${aiLang(u)==='pt'?'Verbo de opinião pede congiuntivo.':'Dopo un verbo di opinione serve il congiuntivo.'}"}]`;
+Rispondi solo con un array JSON: [{"frase":"Penso che Marco ___ ragione. (avere)","risposte":["abbia"],"spiegazione":"${({pt:'Verbo de opinião pede congiuntivo.',es:'Un verbo de opinión pide congiuntivo.',it:'Dopo un verbo di opinione serve il congiuntivo.'})[aiLang(u)]}"}]`;
   try{
     const data=await sample.json(prompt,{cache:false});
     const items=(Array.isArray(data)?data:[]).filter(x=>x&&typeof x.frase==='string'&&(x.frase.match(/___/g)||[]).length===1&&Array.isArray(x.risposte)&&x.risposte.length)
@@ -427,14 +429,30 @@ function md(t){
   });
   close(); return out;
 }
-function aiLang(u){ if(S.aiLang==='pt'||S.aiLang==='it') return S.aiLang; return (u&&u.band===0)?'pt':'it'; }
+function aiLang(u){ if(['pt','it','es'].includes(S.aiLang)) return S.aiLang; const low=!u||u.band<=1; return low?((S.expLang||'es')==='es'?'es':'pt'):'it'; }
+const LNAME={pt:'portoghese',es:'spagnolo di Spagna',it:'italiano semplice'};
+const lname=(u,up)=>{ const n=LNAME[aiLang(u)]; return up?n.toUpperCase():n; };
 function corrPrompt(u,text){
   const lvl=u.lvl.split('→').pop().trim();
   const head=`Sei un'insegnante d'italiano esigente ma incoraggiante. Correggi il testo di una studentessa madrelingua portoghese (Brasile) che parla spagnolo fluentemente e sta studiando per arrivare al livello ${lvl}.
 Tema grammaticale dell'unità: ${u.focus}.
 Consegna: ${u.write.task}
 `;
-  const body = aiLang(u)==='pt' ? `
+  const body = aiLang(u)==='es' ? `
+Rispondi IN SPAGNOLO DI SPAGNA (gli esempi in italiano), con esattamente queste sezioni in markdown:
+## Valoración general
+Nivel MCER estimado del texto, 2-3 frases sobre puntos fuertes y débiles, y si se han usado la consigna y las estructuras de la unidad.
+## Lo que has hecho bien
+2 o 3 puntos concretos del texto que son correctos y están bien usados (aquí, y solo aquí, van los aciertos).
+## Errores
+Lista con cada error en el formato: ~~incorrecto~~ → **correcto**: explicación breve. Marca [ES] o [PT] cuando sea una interferencia de esas lenguas. Agrupa por tipo (gramática, vocabulario, ortografía/tildes). Incluye SOLO errores reales: si la forma original ya es correcta, no la pongas en esta lista.
+## Texto corregido
+El texto entero corregido, cambiando lo mínimo posible.
+## Para sonar más italiana
+3 sugerencias de expresiones o estructuras más naturales, con el fragmento original y la versión mejorada.
+## Ejercicio personalizado
+3 frases para completar basadas en sus errores (con ___), y las soluciones al final.
+` : aiLang(u)==='pt' ? `
 Rispondi IN PORTOGHESE (gli esempi in italiano), con esattamente queste sezioni in markdown:
 ## Avaliação geral
 Nível CEFR estimado do texto, 2-3 frases sobre pontos fortes e fracos, e se a consigna e as estruturas da unidade foram usadas.
@@ -477,7 +495,7 @@ function tabWrite(u,c){
      <p class="wc" id="wc"></p>
      <div class="btnrow" style="margin-top:12px"><button class="btn red" id="wcorr">Correggi con la penna rossa</button><button class="btn" id="wmodel">Vedi il testo modello</button><button class="btn" id="wdone"></button></div>
     </div>
-    <aside class="side"><h4>Obiettivi del compito</h4><ul class="checklist" id="wtargets"></ul><p class="note" style="margin:0">Gli obiettivi si contano da soli mentre scrivi (alcuni sono stime). Quelli «da confermare» spuntali tu.</p><h4>Correzione in</h4><div class="seg" id="ailang" style="margin:0"><button data-l="it" aria-pressed="${aiLang(u)==='it'}">italiano</button><button data-l="pt" aria-pressed="${aiLang(u)==='pt'}">portoghese</button></div></aside>
+    <aside class="side"><h4>Obiettivi del compito</h4><ul class="checklist" id="wtargets"></ul><p class="note" style="margin:0">Gli obiettivi si contano da soli mentre scrivi (alcuni sono stime). Quelli «da confermare» spuntali tu.</p><h4>Correzione in</h4><div class="seg" id="ailang" style="margin:0"><button data-l="it" aria-pressed="${aiLang(u)==='it'}">italiano</button><button data-l="es" aria-pressed="${aiLang(u)==='es'}">spagnolo</button><button data-l="pt" aria-pressed="${aiLang(u)==='pt'}">portoghese</button></div></aside>
    </div>
    <div id="wmodelbox" hidden><div class="model">${esc(W.model)}</div></div>
    <div id="wout"></div>`;
@@ -768,7 +786,7 @@ Frase di partenza: ${prompt}
 Soluzioni di riferimento: ${answers.join(' | ')}
 Risposta della studentessa: ${mine}
 La risposta può essere corretta anche se diversa dalle soluzioni, purché sia grammaticalmente corretta, naturale e fedele al senso (e, per le trasformazioni, rispetti la consegna).
-Rispondi solo con JSON: {"corretta": true o false, "versione_corretta": "la sua frase corretta con il minimo di modifiche", "spiegazione": "in ${aiLang()==='pt'?'portoghese':'italiano semplice'}, massimo 35 parole, indicando eventuali interferenze di PT/ES"}`;
+Rispondi solo con JSON: {"corretta": true o false, "versione_corretta": "la sua frase corretta con il minimo di modifiche", "spiegazione": "in ${lname()}, massimo 35 parole, indicando eventuali interferenze di PT/ES"}`;
   try{
     const r=await sample.json(q);
     const ok=!!(r&&r.corretta);
@@ -1747,7 +1765,7 @@ function chatPick(pb){
   pb.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ chat={sc:ROLEPLAY[+b.dataset.r],turns:[],msgs:[]}; renderChat(pb); chatSend(null); });
 }
 const LVLHINT={A1:'frasi molto semplici e brevi, presente indicativo, lessico di base',A2:'frasi semplici, presente e passato prossimo, lessico quotidiano',B1:'frasi naturali, i tempi principali, qualche espressione comune',B2:'lingua naturale e varia, anche congiuntivo e condizionale',C1:'lingua ricca, idiomatica e sfumata'};
-function chatRules(sc){ const lang=aiLang({band:/A[12]/.test(sc.lvl)?0:1})==='pt'?'portoghese':'italiano semplice';
+function chatRules(sc){ const lang=lname({band:/A[12]/.test(sc.lvl)?0:2});
   return `Sei ${sc.role}. Stai facendo una conversazione di pratica con una studentessa brasiliana (parla anche spagnolo) di livello ${sc.lvl}. Obiettivo della conversazione: ${sc.goal}.
 Regole: resta sempre nel personaggio; usa un italiano adatto al livello ${sc.lvl} (${LVLHINT[sc.lvl]}); rispondi con 1-3 frasi brevi e quasi sempre fai una domanda per far continuare la conversazione; se la studentessa scrive in portoghese o in spagnolo, rispondi in italiano e suggeriscile la parola giusta.
 Rispondi SEMPRE e soltanto con un oggetto JSON: {"risposta":"la tua battuta nel personaggio","correzione":"il messaggio della studentessa corretto con il minimo di modifiche, oppure stringa vuota se era corretto o se non ha ancora scritto","nota":"spiegazione brevissima dell'errore in ${lang}, oppure stringa vuota","suggerimenti":["due possibili risposte brevi per la studentessa, in italiano, di livello ${sc.lvl}"]}`; }
@@ -1795,7 +1813,7 @@ async function chatEval(){
   const out=$('#ceval'); const mine=chat.msgs.filter(m=>m.who==='me');
   if(mine.length<3){ out.innerHTML='<div class="ai-out"><p>Scrivi almeno tre messaggi prima di chiedere la valutazione.</p></div>'; return; }
   const sample=await getSample(); if(!sample) return;
-  const lang=aiLang({band:/A[12]/.test(chat.sc.lvl)?0:1})==='pt'?'PORTOGHESE':'ITALIANO (semplice)';
+  const lang=lname({band:/A[12]/.test(chat.sc.lvl)?0:2},1);
   const tr=chat.msgs.filter(m=>m.who!=='sys').map(m=>(m.who==='me'?'STUDENTESSA: ':'INTERLOCUTORE: ')+m.text).join('\n');
   out.innerHTML='<div class="ai-out"><div class="stamp">La professoressa sta leggendo…</div><div id="cevb"></div></div>';
   try{ const r=await sample(`Sei un'insegnante d'italiano. Valuta la conversazione di pratica di una studentessa brasiliana (parla anche spagnolo), scenario «${chat.sc.t}», livello ${chat.sc.lvl}. Rispondi in ${lang} con queste sezioni in markdown:
@@ -1834,7 +1852,7 @@ function afterOral(sec,i,o){
   const sc={}; box.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{ const c=b.dataset.c; sc[c]=+b.dataset.n; box.querySelectorAll(`[data-c="${c}"]`).forEach(x=>x.setAttribute('aria-pressed',x===b)); if(Object.keys(sc).length===crit.length){ const tot=Object.values(sc).reduce((a,b)=>a+b,0); S.orale[i]=tot+'/20'; save(); tick(10); toast(`<span class="pen">Prova registrata:</span> ${tot}/20`); } });
   box.querySelector('[data-act="fb"]').onclick=async()=>{ const t=box.querySelector('textarea').value.trim(), out=box.querySelector('.ofb'); if(t.split(/\s+/).length<15){ out.innerHTML='<p class="note">Scrivi almeno 15 parole.</p>'; return; }
     const sample=await getSample(); if(!sample){ out.innerHTML='<p class="note">La correzione funziona solo con la pagina aperta dentro Claude.</p>'; return; }
-    const lang=aiLang({band:o.lvl==='A2'?0:1})==='pt'?'PORTOGHESE':'ITALIANO (semplice)';
+    const lang=lname({band:o.lvl==='A2'?0:2},1);
     out.innerHTML='<div class="ai-out"><div class="stamp">La professoressa sta ascoltando…</div><div class="ofbb"></div></div>';
     try{ const r=await sample(`Sei un esaminatore della prova orale CILS/CELI. Questa è la trascrizione (dettata) della produzione orale di una studentessa brasiliana che parla anche spagnolo. Livello della prova: ${o.lvl}. Consegna: «${o.p}». Ignora la punteggiatura e piccoli errori di trascrizione automatica.
 Rispondi in ${lang} con queste sezioni in markdown:
@@ -2077,7 +2095,7 @@ function racconta(fb){
   ta.oninput=()=>{ S.racconta=ta.value; save(); wc(); };
   $('#rcgo').onclick=async()=>{ const t=ta.value.trim(), out=$('#rcout'); if(t.split(/\s+/).length<20){ out.innerHTML='<p class="note">Scrivi almeno 20 parole.</p>'; return; }
     const sample=await getSample(); if(!sample){ out.innerHTML='<p class="note">La correzione funziona solo con la pagina aperta dentro Claude.</p>'; return; }
-    const lang=aiLang({band:0})==='pt'?'PORTOGHESE':'ITALIANO (semplice)';
+    const lang=lname({band:0},1);
     out.innerHTML='<div class="ai-out"><div class="stamp">La professoressa sta leggendo…</div><div id="rcb"></div></div>';
     try{ const r=await sample(`Sei un'insegnante d'italiano. Una studentessa brasiliana (parla anche spagnolo, livello tra A1 e B2) racconta che cosa ha letto, visto o studiato oggi. Il testo può essere dettato: ignora la punteggiatura mancante. Rispondi in ${lang} con queste sezioni in markdown:
 ## Livello stimato
@@ -2430,7 +2448,7 @@ function renderDiario(){
 async function correggiFrasi(f,tema,lvl){
   const sample=await getSample(); if(!sample) return null;
   const prompt=`Sei un'insegnante d'italiano attenta e gentile. La studentessa è brasiliana (parla portoghese e spagnolo) e studia italiano al livello ${lvl}. Ha scritto ${f.length} frasi${tema?`; argomento: «${tema}»`:''}.
-Per ogni frase: se è corretta e naturale, "ok": true e "corretta" uguale all'originale. Se c'è un errore VERO (grammatica, ortografia, accento, parola sbagliata o inventata, calco dal portoghese o dallo spagnolo), "ok": false, "corretta" = la frase corretta cambiando il meno possibile, "nota" = spiegazione breve in portoghese (massimo 20 parole). Non segnalare come errore scelte corrette di stile o di registro.
+Per ogni frase: se è corretta e naturale, "ok": true e "corretta" uguale all'originale. Se c'è un errore VERO (grammatica, ortografia, accento, parola sbagliata o inventata, calco dal portoghese o dallo spagnolo), "ok": false, "corretta" = la frase corretta cambiando il meno possibile, "nota" = spiegazione breve in ${lname({band:0})} (massimo 20 parole). Non segnalare come errore scelte corrette di stile o di registro.
 ${f.map((x,i)=>`${i+1}. ${x}`).join('\n')}
 Rispondi solo con un array JSON di ${f.length} oggetti, nello stesso ordine: [{"ok":true,"corretta":"…","nota":""}]`;
   const data=await sample.json(prompt,{cache:false,modelTier:'quick'});
@@ -2443,6 +2461,27 @@ function showDiaryCorr(entry){
     box.innerHTML=x.ok?'<span class="mark ok">giusta ✓</span>':`<span class="mark no">da sistemare</span> <span class="corrected">${esc(x.corr)}</span>${x.nota?`<p class="expl">${esc(x.nota)}</p>`:''}`; });
 }
 
+/* ---------- lingua delle spiegazioni di A1 e A2 (español / português) ---------- */
+const LANG_UNDO=[];
+function applyExpLang(){
+  while(LANG_UNDO.length){ const [o,k,v]=LANG_UNDO.pop(); o[k]=v; }
+  if((S.expLang||'es')!=='es'||typeof ES_AA==='undefined') return;
+  const set=(o,k,v)=>{ if(o==null||v==null) return; LANG_UNDO.push([o,k,o[k]]); o[k]=v; };
+  const low=new Set(UNITS.filter(u=>u.band<=1).map(u=>u.id));
+  Object.entries(ES_AA).forEach(([key,val])=>{
+    const parts=key.split('.'), u=UNITS.find(x=>String(x.id)===parts[0]); if(!u) return;
+    if(parts[1]==='gloss'){ if(!u.reading) return; let t=u.reading.text; val.split(' ;; ').forEach(g=>{ const [it,es]=g.split('|'); t=t.split('[['+it+'|').map((seg,i)=>i===0?seg:es+seg.slice(seg.indexOf(']]'))).join('[['+it+'|'); }); set(u.reading,'text',t); return; }
+    let o=u; for(let i=1;i<parts.length-1;i++){ o=o[/^\d+$/.test(parts[i])?+parts[i]:parts[i]]; if(o==null) return; }
+    const last=parts[parts.length-1]; set(o,/^\d+$/.test(last)?+last:last,val);
+  });
+  if(ES_SCHEDE) Object.keys(ES_SCHEDE).forEach(id=>{ if(SCHEDE[id]) set(SCHEDE,id,ES_SCHEDE[id]); });
+  if(ES_STORIA_GL) STORIA.forEach(c=>{ if(!low.has(c.u)) return; let t=c.text; Object.entries(ES_STORIA_GL).forEach(([it,es])=>{ t=t.split('[['+it+'|').map((seg,i)=>i===0?seg:es+seg.slice(seg.indexOf(']]'))).join('[['+it+'|'); }); set(c,'text',t); });
+  if(ES_TRAD) Object.entries(ES_TRAD).forEach(([i,[q,n]])=>{ const t=TRAD[+i]; if(t){ set(t,0,q); set(t,3,n); } });
+}
+function langSwitch(){ const l=S.expLang||'es'; return `<div class="langsw" role="group" aria-label="Lingua delle spiegazioni"><span class="note">Explicaciones en</span><button type="button" data-xl="es" aria-pressed="${l==='es'}">español</button><button type="button" data-xl="pt" aria-pressed="${l==='pt'}">português</button></div>`; }
+function bindLangSwitch(root,rerender){ (root||document).querySelectorAll('[data-xl]').forEach(b=>b.onclick=()=>{ S.expLang=b.dataset.xl; if(S.aiLang==='pt'||S.aiLang==='es') delete S.aiLang; save(); applyExpLang(); rerender(); }); }
+if(!S.langMigES){ S.langMigES=1; if(S.aiLang==='pt') delete S.aiLang; save(); }
+try{ applyExpLang(); }catch(e){ console.warn('lingua',e); }
 if(!S.storyMig110){ if(STORIA_SHIFT>=0){ const o=S.story||{}, n={}; Object.keys(o).forEach(k=>{ n[+k>=STORIA_SHIFT?+k+1:k]=o[k]; }); S.story=n; } S.storyMig110=1; save(); }
 if(!S.planMig2){ S.planCfg=Object.assign({},S.planCfg||{},{sunFree:false,work:PLAN_DEF.work}); S.planMig2=1; if(S.plan&&S.plan.a) buildPlan(dayKey()); }
 if(!S.plan||!S.plan.a) buildPlan(dayKey());

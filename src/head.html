@@ -656,6 +656,12 @@ label.chk{display:inline-flex;gap:6px;align-items:center}
 .ankicfg{margin-top:10px}
 .duelab{font-family:var(--f-ui);font-size:11.5px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;white-space:nowrap;vertical-align:2px}
 .duelab.today{color:var(--rosso);border-color:color-mix(in srgb,var(--rosso) 40%,var(--line))}
+.langsw{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 0 12px}
+.langsw .note{margin-right:4px}
+.langsw button{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:3px 11px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.langsw button[aria-pressed="true"]{background:var(--blu);border-color:var(--blu);color:#fff}
+:root[data-theme="dark"] .langsw button[aria-pressed="true"]{color:#0F131B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .langsw button[aria-pressed="true"]{color:#0F131B}}
 /* libri */
 .books{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .bookc{margin:0;display:flex;flex-direction:column}

@@ -37,6 +37,7 @@ O código-fonte está em `src/`:
 | `tests*.js` | verificações |
 | `storia.js`, `schede.js`, `cultura.js`, `speak_data.js`, `videos.js`, `sentences.js`, `data_it.js` | história, fichas, cultura, fala, vídeos e livros, frases |
 | `coniugatore.js` | motor do conjugador: irregulares, compostos, verbos em -ere fortes, regras dos regulares |
+| `es_a1a2.js` | explicações e enunciados de A1 e A2 em espanhol da Espanha (aplicados por cima dos textos em português; dá para alternar na página da unidade) |
 | `app.js` | a aplicação (rotas, plano, calendário, exercícios) |
 
 Depois de editar, gere a página de novo:
