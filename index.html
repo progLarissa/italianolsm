@@ -678,6 +678,8 @@ label.chk{display:inline-flex;gap:6px;align-items:center}
 .mappa .mt{display:grid;gap:3px;min-width:0}
 .mappa .mt span{font-size:14px;color:var(--muted);line-height:1.45}
 .mappa .mq{color:var(--ink)!important}
+.pxbox{width:100%;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;word-break:break-all;margin-top:10px}
+.syncline a{color:inherit}
 /* libri */
 .books{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .bookc{margin:0;display:flex;flex-direction:column}
@@ -6221,7 +6223,7 @@ function renderNav(route){
    <li><a class="navlink tool" href="#falsi-amici" ${route.type==='falsi'?'aria-current="page"':''}><span class="n">≠</span><span class="t">Falsi amici<br><small class="note">${FALSI.length} trappole ES/PT</small></span></a></li>
    <li><a class="navlink tool" href="#verbi" ${route.type==='verbi'?'aria-current="page"':''}><span class="n">→</span><span class="t">Coniugatore<br><small class="note">cerca qualsiasi verbo · tutti i tempi</small></span></a></li>
    <li><a class="navlink tool" href="#frasi" ${route.type==='frasi'?'aria-current="page"':''}><span class="n">¶</span><span class="t">Laboratorio di frasi<br><small class="note">${TRAD.length} traduzioni · ${TRASF.length} trasformazioni</small></span></a></li>
-  </ul></div><p class="syncline" id="syncline">${syncText()}</p>`;
+  </ul></div><p class="syncline" id="syncline">${syncText()}</p><p class="syncline"><a href="#progressi">⇅ Levar o progresso para outro aparelho</a></p>`;
   nav.innerHTML=h;
   updRhythm();
 }
@@ -6236,6 +6238,7 @@ function route(){
   if(h==='ripasso') return {type:'ripasso'};
   if(h==='misto') return {type:'misto'};
   if(h==='mappa') return {type:'mappa'};
+  if(h==='progressi') return {type:'progressi'};
   if(h==='diario') return {type:'diario'};
   if(h==='lessico') return {type:'lessico'};
   if(h==='cultura') return {type:'cultura'};
@@ -6270,6 +6273,7 @@ function render(){
   else if(r.type==='ripasso') renderRipasso();
   else if(r.type==='misto') renderMisto();
   else if(r.type==='mappa') renderMappa();
+  else if(r.type==='progressi') renderProgressi();
   else if(r.type==='diario') renderDiario();
   else if(r.type==='lessico') renderLessico(r.id);
   else if(r.type==='cultura') renderCultura(r.id);
@@ -6993,6 +6997,7 @@ const MAPPA=[
  {r:'scheda',h:'#schede',n:'Schede riassuntive',d:'Uma ficha de 2 minutos por unidade: regras, exemplos e a armadilha a evitar.',q:'Fora do plano: ótimas para revisar antes da aula do curso. Aparece uma vez como «Scopri».'},
  {r:'frasi',h:'#frasi',n:'Frasi da tradurre',d:'Traduzir frases do português, transformar estruturas e reconstruir frases.',q:'Livre. Aparece uma vez como «Scopri».'},
  {r:'parlare',h:'#parlare',n:'Parlare',d:'Conversas com a IA, frases prontas para cada situação e simulação da prova oral.',q:'Livre. Aparece uma vez como «Scopri». Tente falar um pouco toda semana.'},
+ {r:'progressi',h:'#progressi',n:'I miei progressi',d:'Exportar e importar o progresso com um código, para continuar em outro aparelho ou entre o Claude e o GitHub.',q:'Quando trocar de aparelho. Dentro do Claude a sincronização já é automática.'},
  {r:'mappa',h:'#mappa',n:'Mappa del quaderno',d:'Esta página: o que é cada parte e quando ela aparece no plano.',q:'Sempre que se sentir perdida.'}
 ];
 const mapSeen=m=>!!(S.seen&&S.seen[m.r]);
@@ -7626,6 +7631,60 @@ function renderLessico(id){
     mcList($('#lxq'),qs,(sc,t)=>{ showScore($('#lxscore'),sc,t); if(sc>=7) seen(); },i=>err(qs[i].ix));
     $('#lxnew').onclick=()=>renderLessico(id);
   }
+}
+
+/* ---------- esportare e importare i progressi ---------- */
+const b64e=u8=>{ let s=''; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000)); return btoa(s); };
+const b64d=str=>{ const s=atob(str); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; };
+async function packState(){
+  const json=JSON.stringify(Object.assign({},S,{trc:{}}));
+  const raw=new TextEncoder().encode(json);
+  if(typeof CompressionStream!=='undefined'){ try{ const cs=new Blob([raw]).stream().pipeThrough(new CompressionStream('gzip')); const buf=new Uint8Array(await new Response(cs).arrayBuffer()); return 'QIT1z:'+b64e(buf); }catch(e){} }
+  return 'QIT1:'+b64e(raw);
+}
+async function unpackState(code){
+  code=String(code||'').trim().replace(/\s+/g,'');
+  if(code.startsWith('{')) return JSON.parse(code);
+  const m=code.match(/^QIT1(z?):(.+)$/); if(!m) throw new Error('formato');
+  let bytes=b64d(m[2]);
+  if(m[1]){ const ds=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')); bytes=new Uint8Array(await new Response(ds).arrayBuffer()); }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function progSummary(o){ const n=x=>Object.keys((o&&o[x])||{}).length; return `${n('lesson')} lições · ${n('ex')} séries de exercícios · ${n('myvoc')} palavras suas · ${n('diario')} páginas do diário · ${n('days')} dias de estudo`; }
+function renderProgressi(){
+  const inClaude=syncSt==='ok'||syncSt==='sync';
+  $('#main').innerHTML=`<header class="uhead"><div class="eyebrow">Il tuo studio</div><h1 class="title">I miei progressi</h1>
+   <p class="subtitle trdone">Para continuar de onde parou em outro aparelho ou na outra versão do caderno (Claude ↔ GitHub).</p></header>
+   <section class="card"><div class="card-h"><div><span class="lab">Como funciona hoje</span><h3>${inClaude?'Neste aparelho: sincronizado com a sua conta ✓':'Neste aparelho: salvo só neste navegador'}</h3></div></div>
+    <ul class="dots trdone">
+     <li><b>Dentro do Claude</b> (o link do Claude, no computador ou no celular): o progresso já se sincroniza sozinho pela sua conta. Não precisa fazer nada.</li>
+     <li><b>No site do GitHub</b> (ou no atalho da tela de início): o progresso fica só naquele navegador. Para levá-lo a outro lugar, use o código abaixo.</li>
+    </ul>
+    <p class="note trdone">Agora aqui: ${progSummary(S)}.</p></section>
+   <section class="card"><div class="card-h"><div><span class="lab">1 · No aparelho de onde você sai</span><h3>Exportar o progresso</h3></div></div>
+    <p class="trdone">Gere o código e copie. Depois cole no outro aparelho (por e-mail para você mesma, WhatsApp, notas…).</p>
+    <div class="btnrow"><button class="btn primary" type="button" id="pxgo">Gerar código</button><button class="btn" type="button" id="pxcopy" hidden>Copiar código</button><button class="btn ghost" type="button" id="pxfile" hidden>Baixar arquivo</button><span class="note" id="pxmsg"></span></div>
+    <textarea id="pxout" class="labin pxbox" rows="4" readonly hidden></textarea></section>
+   <section class="card"><div class="card-h"><div><span class="lab">2 · No aparelho onde você chega</span><h3>Importar o progresso</h3></div></div>
+    <p class="trdone">Cole o código (ou escolha o arquivo) e toque em «Importar». O caderno <b>junta</b> os dois progressos: nada do que já está aqui se perde, e para cada parte fica a versão mais recente.</p>
+    <textarea id="pxin" class="labin pxbox" rows="4" placeholder="QIT1z:…" spellcheck="false" autocapitalize="off"></textarea>
+    <div class="btnrow"><button class="btn primary" type="button" id="pxim">Importar</button><label class="btn ghost" style="cursor:pointer">Escolher arquivo<input type="file" id="pxfin" accept=".txt,.json,text/plain,application/json" hidden></label><span class="note" id="pximsg"></span></div></section>`;
+  let code='';
+  $('#pxgo').onclick=async()=>{ code=await packState(); const o=$('#pxout'); o.value=code; o.hidden=false; $('#pxcopy').hidden=false; $('#pxfile').hidden=false; $('#pxmsg').textContent=`Código pronto (${Math.round(code.length/1024)} KB).`; };
+  $('#pxcopy').onclick=()=>{ const o=$('#pxout'); const done=()=>{ $('#pxmsg').textContent='Copiado ✓'; };
+    try{ navigator.clipboard.writeText(code).then(done,()=>{ o.focus(); o.select(); $('#pxmsg').textContent='Selecionei o código: copie com o menu (Copiar).'; }); }catch(e){ o.focus(); o.select(); $('#pxmsg').textContent='Selecionei o código: copie com o menu (Copiar).'; } };
+  $('#pxfile').onclick=()=>{ try{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([code],{type:'text/plain'})); a.download='quaderno-italiano-'+dayKey()+'.txt'; document.body.append(a); a.click(); a.remove(); $('#pxmsg').textContent='Se o download não começar (dentro do Claude ele é bloqueado), use «Copiar código».'; }catch(e){ $('#pxmsg').textContent='Use «Copiar código».'; } };
+  $('#pxfin').onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ $('#pxin').value=String(r.result||''); $('#pximsg').textContent='Arquivo carregado: toque em «Importar».'; }; r.readAsText(f); };
+  $('#pxim').onclick=async()=>{
+    const msg=$('#pximsg'); let inc;
+    try{ inc=await unpackState($('#pxin').value); }catch(e){ msg.textContent='Esse código não parece do Quaderno d\'Italiano. Copie o código inteiro (começa com QIT1).'; return; }
+    if(!inc||typeof inc!=='object'||(!inc.lesson&&!inc.ex&&!inc.plan)){ msg.textContent='O código está vazio ou incompleto.'; return; }
+    const keepAt=Math.max(S.at||0,inc.at||0);
+    S=mergeState(S,inc); ensureDefaults(); S.at=Date.now()>keepAt?Date.now():keepAt+1;
+    _steps=null; try{ applyExpLang(); }catch(e){}
+    save(); renderNav(route()); renderProgressi();
+    $('#pximsg').textContent='Importado ✓ Agora aqui: '+progSummary(S)+'.';
+  };
 }
 
 /* ---------- sincronizzazione ---------- */

@@ -24,6 +24,8 @@
 
 No celular, use "Adicionar à tela de início" (Safari no iPhone, Chrome no Android): o caderno aparece com o próprio ícone e abre em tela cheia, como um app. Os ícones e o `manifest.webmanifest` ficam na raiz (`icon.svg` é a fonte; os PNG saem dele com `rsvg-convert`).
 
+Para levar o progresso de um aparelho para outro (ou entre o Claude e esta versão), use «I miei progressi» (link no fim do Índice): gera um código para copiar e colar, ou um arquivo.
+
 Fora do claude.ai, a correção das redações por IA, as respostas da IA e a sincronização entre dispositivos ficam desligadas. O progresso fica salvo no navegador (localStorage).
 
 ## Como editar
